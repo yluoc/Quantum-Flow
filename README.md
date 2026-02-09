@@ -5,7 +5,7 @@ Low-latency trading engine with a Python market-data pipeline and a live web UI.
 ## Highlights
 - C++ limit-order-book core with pluggable strategies
 - Python websocket ingest and normalization pipeline
-- Shared-memory bridge between Python and C++
+- Bridge ingress from Python to C++ (Unix socket IPC + in-process fallback)
 - Optional WebSocket server + dashboard
 
 ## Quick Start
@@ -20,7 +20,15 @@ Low-latency trading engine with a Python market-data pipeline and a live web UI.
    ```
 3. Run the engine (defaults to WebUI mode):
    ```bash
-   ./build/quantumflow
+   ./build/quantumflow --symbols BTC-USDT-SWAP,ETH-USDT-SWAP
+   ```
+4. Run the Python pipeline (in another terminal):
+   ```bash
+   cd pipeline
+   PYTHONPATH=. python -m src.app \
+     --symbols BTC-USDT-SWAP,ETH-USDT-SWAP \
+     --channels books5,trades \
+     --cpp-bridge
    ```
 
 ## Layout

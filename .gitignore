@@ -5,3 +5,5 @@ session.txt
 /build
 compile_commands.json
 *.pyc
+/screenshot
+.venv

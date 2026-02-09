@@ -31,6 +31,7 @@ async def main_loop(
     enable_stdout: bool,
     enable_jsonl: bool,
     enable_cpp_bridge: bool,
+    bridge_socket: str,
     csv_export_path: str | None,
     csv_export_interval: float,
 ) -> None:
@@ -58,7 +59,7 @@ async def main_loop(
         sinks.append(JsonlSink(root="data", flush_interval_sec=1.0, flush_count=100))
     if enable_cpp_bridge:
         from src.sinks.bridge import CppBridgeSink
-        sinks.append(CppBridgeSink())
+        sinks.append(CppBridgeSink(socket_path=bridge_socket))
     
     # Create metrics
     metrics = RollingMetrics(window_seconds=5.0)
@@ -160,13 +161,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--symbols",
         type=str,
-        default="BTC-USDT,ETH-USDT",
+        default="BTC-USDT-SWAP,ETH-USDT-SWAP",
         help="Comma-separated list of trading pairs",
     )
     parser.add_argument(
         "--channels",
         type=str,
-        default="books5",
+        default="books5,trades",
         help="Comma-separated list of channels (e.g., books5,trades)",
     )
     parser.add_argument(
@@ -200,7 +201,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cpp-bridge",
         action="store_true",
-        help="Enable C++ bridge sink (push data to QuantumFlow ring buffer)",
+        help="Enable C++ bridge sink (push data to QuantumFlow Unix socket)",
+    )
+    parser.add_argument(
+        "--bridge-socket",
+        type=str,
+        default="/tmp/quantumflow_bridge.sock",
+        help="Unix socket path used by the C++ bridge sink",
     )
     return parser.parse_args()
 
@@ -220,7 +227,10 @@ def main() -> None:
         sys.exit(1)
     
     logger.info(f"Starting pipeline: symbols={symbols}, channels={channels}, url={args.url}")
-    logger.info(f"Sinks: stdout={not args.no_stdout}, jsonl={not args.no_jsonl}, cpp_bridge={args.cpp_bridge}")
+    logger.info(
+        f"Sinks: stdout={not args.no_stdout}, jsonl={not args.no_jsonl}, "
+        f"cpp_bridge={args.cpp_bridge} socket={args.bridge_socket}"
+    )
     if args.csv_export:
         logger.info(f"CSV export: {args.csv_export} (interval: {args.csv_export_interval}s)")
     
@@ -232,6 +242,7 @@ def main() -> None:
             enable_stdout=not args.no_stdout,
             enable_jsonl=not args.no_jsonl,
             enable_cpp_bridge=args.cpp_bridge,
+            bridge_socket=args.bridge_socket,
             csv_export_path=args.csv_export,
             csv_export_interval=args.csv_export_interval,
         ))

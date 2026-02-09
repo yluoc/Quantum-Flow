@@ -1,31 +1,75 @@
-"""C++ bridge sink — pushes normalized events to the C++ ring buffer via PyBind11."""
+"""C++ bridge sink via Unix-domain datagram socket (cross-process IPC)."""
 
 from __future__ import annotations
 
 import logging
-import time
+import socket
+import struct
 
 from src.normalizer import BookPayload, NormalizedEvent, TradePayload
 from src.sinks.base import Sink
 
 logger = logging.getLogger(__name__)
 
-# Quantity conversion: float size → satoshi units (multiply by 1e8)
+# Quantity conversion: float size -> integer lots
 _QTY_SCALE = int(1e8)
+
+# MarketDataPacket wire format (must match common/market_data_packet.hpp layout)
+# char symbol[16], uint8 side, uint8 event_type, 6 bytes padding, double price,
+# uint64 quantity, uint64 timestamp_ns, uint64 order_id
+_PACKET_STRUCT = struct.Struct("<16sBB6xdQQQ")
+
+_DEFAULT_BRIDGE_SOCKET = "/tmp/quantumflow_bridge.sock"
 
 
 class CppBridgeSink(Sink):
-    """Sink that pushes market data events to the C++ QuantumFlow ring buffer."""
+    """Sink that pushes market data events to the C++ engine over Unix socket."""
 
-    def __init__(self) -> None:
+    def __init__(self, socket_path: str = _DEFAULT_BRIDGE_SOCKET) -> None:
+        self._socket_path = socket_path
+        self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        self._sock.setblocking(False)
+        self._sent = 0
+        self._dropped = 0
+        self._warned_missing_socket = False
+
+    @staticmethod
+    def _encode_symbol(symbol: str) -> bytes:
+        raw = symbol.encode("ascii", errors="ignore")[:15]
+        return raw.ljust(16, b"\0")
+
+    def _send_packet(
+        self,
+        symbol: str,
+        side: int,
+        event_type: int,
+        price: float,
+        quantity: int,
+        timestamp_ns: int,
+        order_id: int = 0,
+    ) -> None:
+        payload = _PACKET_STRUCT.pack(
+            self._encode_symbol(symbol),
+            side,
+            event_type,
+            float(price),
+            int(quantity),
+            int(timestamp_ns),
+            int(order_id),
+        )
         try:
-            import quantumflow_bridge  # type: ignore[import-not-found]
-            self._bridge = quantumflow_bridge
-        except ImportError as e:
-            raise ImportError(
-                "quantumflow_bridge module not found. "
-                "Build the PyBind11 module first: cmake --build build --target quantumflow_bridge"
-            ) from e
+            self._sock.sendto(payload, self._socket_path)
+            self._sent += 1
+        except FileNotFoundError:
+            self._dropped += 1
+            if not self._warned_missing_socket:
+                logger.warning(
+                    "Bridge socket %s not found. Start the C++ engine first.",
+                    self._socket_path,
+                )
+                self._warned_missing_socket = True
+        except (BlockingIOError, OSError):
+            self._dropped += 1
 
     async def write(self, event: NormalizedEvent) -> None:
         payload = event.payload
@@ -34,7 +78,7 @@ class CppBridgeSink(Sink):
         if isinstance(payload, BookPayload):
             # Push each bid level
             for level in payload.bids:
-                self._bridge.push_market_data(
+                self._send_packet(
                     symbol=event.symbol,
                     side=0,  # buy
                     event_type=0,  # book_level
@@ -44,7 +88,7 @@ class CppBridgeSink(Sink):
                 )
             # Push each ask level
             for level in payload.asks:
-                self._bridge.push_market_data(
+                self._send_packet(
                     symbol=event.symbol,
                     side=1,  # sell
                     event_type=0,  # book_level
@@ -55,7 +99,7 @@ class CppBridgeSink(Sink):
 
         elif isinstance(payload, TradePayload):
             side = 0 if payload.side == "buy" else 1
-            self._bridge.push_market_data(
+            self._send_packet(
                 symbol=event.symbol,
                 side=side,
                 event_type=1,  # trade
@@ -65,10 +109,10 @@ class CppBridgeSink(Sink):
             )
 
     async def close(self) -> None:
-        stats = self._bridge.bridge_stats()
+        self._sock.close()
         logger.info(
-            "CppBridgeSink closed — pushed=%d popped=%d dropped=%d",
-            stats["push_count"],
-            stats["pop_count"],
-            stats["drop_count"],
+            "CppBridgeSink closed - sent=%d dropped=%d socket=%s",
+            self._sent,
+            self._dropped,
+            self._socket_path,
         )

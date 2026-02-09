@@ -8,6 +8,13 @@ Low-latency trading engine with a Python market-data pipeline and a live web UI.
 - Bridge ingress from Python to C++ (Unix socket IPC + in-process fallback)
 - Optional WebSocket server + dashboard
 
+## Dashboard Preview
+<p align="center">
+  <img src="./screenshot/image.png" alt="QuantumFlow dashboard screenshot" width="1100" />
+  <br />
+  <em>Live UI: Order Book, Trade Flow, Latency Metrics, and Strategy Signals.</em>
+</p>
+
 ## Quick Start
 1. Build the C++ engine:
    ```bash

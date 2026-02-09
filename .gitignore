@@ -1,0 +1,7 @@
+.claude
+.vscode
+session.txt
+/web/node_modules
+/build
+compile_commands.json
+*.pyc

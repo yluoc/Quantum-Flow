@@ -90,6 +90,7 @@ if(QUANTUMFLOW_BUILD_WEBUI)
     find_package(ZLIB REQUIRED)
     target_link_libraries(uwebsockets INTERFACE usockets ZLIB::ZLIB)
     target_compile_definitions(uwebsockets INTERFACE LIBUS_NO_SSL)
+    target_compile_options(uwebsockets INTERFACE -Wno-stringop-overflow)
 endif()
 
 # ─────────────────────────────────────────────

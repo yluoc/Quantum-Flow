@@ -12,7 +12,6 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100 p-3 gap-3">
-      {/* Header */}
       <div className="flex items-center justify-between px-2">
         <h1 className="text-xl font-bold tracking-tight text-gray-200">
           QuantumFlow
@@ -20,7 +19,6 @@ export default function App() {
         <ConnectionStatus connected={state.connected} />
       </div>
 
-      {/* 2x2 Grid */}
       <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-3 min-h-0">
         <OrderBookPanel book={state.book} />
         <TradeFlowPanel trades={state.trades} />

@@ -1,13 +1,12 @@
 include(FetchContent)
 
-# Prefer local checkouts to avoid network fetches.
 set(QF_THIRD_PARTY_DIR "${CMAKE_CURRENT_LIST_DIR}")
 if(EXISTS "${QF_THIRD_PARTY_DIR}/pybind11/CMakeLists.txt")
     set(FETCHCONTENT_SOURCE_DIR_pybind11 "${QF_THIRD_PARTY_DIR}/pybind11")
 endif()
 
 # ─────────────────────────────────────────────
-# pybind11 (only if building bridge)
+# pybind11
 # ─────────────────────────────────────────────
 if(QUANTUMFLOW_BUILD_BRIDGE)
     FetchContent_Declare(
@@ -20,7 +19,7 @@ if(QUANTUMFLOW_BUILD_BRIDGE)
 endif()
 
 # ─────────────────────────────────────────────
-# uWebSockets + uSockets + nlohmann/json (only if building WebUI)
+# uWebSockets + uSockets + nlohmann/json
 # ─────────────────────────────────────────────
 if(QUANTUMFLOW_BUILD_WEBUI)
     # nlohmann/json (header-only)
@@ -33,7 +32,6 @@ if(QUANTUMFLOW_BUILD_WEBUI)
     set(JSON_BuildTests OFF CACHE INTERNAL "")
     FetchContent_MakeAvailable(nlohmann_json)
 
-    # uSockets (low-level event loop)
     FetchContent_Declare(
         usockets
         GIT_REPOSITORY https://github.com/uNetworking/uSockets.git
@@ -45,7 +43,6 @@ if(QUANTUMFLOW_BUILD_WEBUI)
         FetchContent_Populate(usockets)
     endif()
 
-    # Build uSockets as a static library
     add_library(usockets STATIC
         ${usockets_SOURCE_DIR}/src/eventing/epoll_kqueue.c
         ${usockets_SOURCE_DIR}/src/eventing/gcd.c
@@ -67,10 +64,8 @@ if(QUANTUMFLOW_BUILD_WEBUI)
         ${usockets_SOURCE_DIR}/src
     )
 
-    # Build without SSL by default (no OpenSSL dependency needed)
     target_compile_definitions(usockets PRIVATE LIBUS_NO_SSL)
 
-    # uWebSockets (header-only C++ WebSocket library)
     FetchContent_Declare(
         uwebsockets
         GIT_REPOSITORY https://github.com/uNetworking/uWebSockets.git
@@ -82,7 +77,6 @@ if(QUANTUMFLOW_BUILD_WEBUI)
         FetchContent_Populate(uwebsockets)
     endif()
 
-    # uWebSockets is header-only; create an interface target
     add_library(uwebsockets INTERFACE)
     target_include_directories(uwebsockets INTERFACE
         ${uwebsockets_SOURCE_DIR}/src
@@ -94,7 +88,7 @@ if(QUANTUMFLOW_BUILD_WEBUI)
 endif()
 
 # ─────────────────────────────────────────────
-# Google Test (only if building tests)
+# Google Test
 # ─────────────────────────────────────────────
 if(QUANTUMFLOW_BUILD_TESTS)
     FetchContent_Declare(

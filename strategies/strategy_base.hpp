@@ -17,8 +17,8 @@ struct PriceLevel {
 
 struct BookSnapshot {
     std::string symbol;
-    std::vector<PriceLevel> bids; // descending by price
-    std::vector<PriceLevel> asks; // ascending by price
+    std::vector<PriceLevel> bids;
+    std::vector<PriceLevel> asks;
     double best_bid;
     double best_ask;
     double mid_price;
@@ -31,7 +31,7 @@ struct BookSnapshot {
 struct TradeInfo {
     double price;
     uint64_t quantity;
-    uint8_t side; // 0=buy, 1=sell
+    uint8_t side;
     uint64_t timestamp_ns;
 };
 

@@ -15,7 +15,6 @@ from src.sinks.jsonl import JsonlSink
 from src.sinks.stdout import StdoutSink
 
 
-# Configure minimal logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -37,21 +36,16 @@ async def main_loop(
 ) -> None:
     """Main event loop."""
     stop = asyncio.Event()
-    
-    # Setup signal handlers for graceful shutdown
+
     def signal_handler():
         logger.info("Received shutdown signal, stopping...")
         stop.set()
-    
+
     if sys.platform != "win32":
         loop = asyncio.get_event_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, signal_handler)
-    else:
-        # Windows doesn't support signal handlers in the same way
-        pass
-    
-    # Create sinks
+
     sinks = []
     if enable_stdout:
         sinks.append(StdoutSink())
@@ -60,17 +54,14 @@ async def main_loop(
     if enable_cpp_bridge:
         from src.sinks.bridge import CppBridgeSink
         sinks.append(CppBridgeSink(socket_path=bridge_socket))
-    
-    # Create metrics
+
     metrics = RollingMetrics(window_seconds=5.0)
-    
-    # Metrics printing task
+
     async def metrics_printer():
         while not stop.is_set():
             metrics.print_stats()
             await asyncio.sleep(1.0)
-    
-    # CSV export task
+
     async def csv_exporter():
         if csv_export_path:
             while not stop.is_set():
@@ -80,22 +71,17 @@ async def main_loop(
                     logger.info(f"Exported metrics to {csv_export_path}")
                 except Exception as e:
                     logger.error(f"Error exporting CSV: {e}", exc_info=True)
-    
-    # Main processing task
+
     async def process_stream():
         try:
             async for ts_recv_epoch_ms, ts_recv_mono_ns, ts_decoded_mono_ns, msg in okx_stream(url, symbols, channels, stop):
-                # Normalize (returns list of events)
                 events = normalize_okx(ts_recv_epoch_ms, ts_recv_mono_ns, ts_decoded_mono_ns, msg)
                 if not events:
                     continue
-                
-                # Process each event
+
                 for event in events:
-                    # Update metrics
                     metrics.update(event)
-                    
-                    # Fan-out to sinks
+
                     for sink in sinks:
                         try:
                             await sink.write(event)
@@ -104,17 +90,15 @@ async def main_loop(
         except Exception as e:
             logger.error(f"Error in stream processing: {e}", exc_info=True)
             stop.set()
-    
-    # Start tasks
+
     tasks = [
         asyncio.create_task(process_stream()),
         asyncio.create_task(metrics_printer()),
     ]
     if csv_export_path:
         tasks.append(asyncio.create_task(csv_exporter()))
-    
+
     try:
-        # Handle Ctrl+C on Windows
         if sys.platform == "win32":
             try:
                 await asyncio.wait_for(asyncio.gather(*tasks), timeout=None)
@@ -125,7 +109,6 @@ async def main_loop(
     except KeyboardInterrupt:
         signal_handler()
     finally:
-        # Wait for tasks to complete
         for task in tasks:
             task.cancel()
         for task in tasks:
@@ -133,15 +116,13 @@ async def main_loop(
                 await task
             except asyncio.CancelledError:
                 pass
-        
-        # Close sinks
+
         for sink in sinks:
             try:
                 await sink.close()
             except Exception as e:
                 logger.error(f"Error closing sink {type(sink).__name__}: {e}", exc_info=True)
-        
-        # Final metrics print and CSV export
+
         metrics.print_stats(force=True)
         if csv_export_path:
             try:
@@ -215,17 +196,17 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     """Entry point."""
     args = parse_args()
-    
+
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
     if not symbols:
         logger.error("No symbols provided")
         sys.exit(1)
-    
+
     channels = [c.strip() for c in args.channels.split(",") if c.strip()]
     if not channels:
         logger.error("No channels provided")
         sys.exit(1)
-    
+
     logger.info(f"Starting pipeline: symbols={symbols}, channels={channels}, url={args.url}")
     logger.info(
         f"Sinks: stdout={not args.no_stdout}, jsonl={not args.no_jsonl}, "
@@ -233,7 +214,7 @@ def main() -> None:
     )
     if args.csv_export:
         logger.info(f"CSV export: {args.csv_export} (interval: {args.csv_export_interval}s)")
-    
+
     try:
         asyncio.run(main_loop(
             url=args.url,

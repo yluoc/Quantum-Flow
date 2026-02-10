@@ -121,16 +121,13 @@ int main(int argc, char* argv[]) {
     std::printf("\nMode: %s\n", cfg.headless ? "headless" : "WebUI");
     std::printf("Bridge Socket: %s\n", cfg.bridge_socket_path.c_str());
 
-    // --- Price converter registry ---
     quantumflow::PriceConverterRegistry price_reg(100.0);
 
-    // --- Per-symbol order books ---
     std::unordered_map<std::string, std::unique_ptr<Book>> books;
     for (const auto& sym : cfg.symbols) {
         books[sym] = std::make_unique<Book>();
     }
 
-    // --- Strategy engine ---
     quantumflow::StrategyEngine strategy_engine;
     strategy_engine.add_strategy(std::make_unique<quantumflow::OrderBookImbalance>());
     strategy_engine.add_strategy(std::make_unique<quantumflow::MarketMaker>());
@@ -140,21 +137,17 @@ int main(int argc, char* argv[]) {
     strategy_engine.add_strategy(std::make_unique<quantumflow::MomentumStrategy>());
     strategy_engine.add_strategy(std::make_unique<quantumflow::PairsTrading>());
 
-    // --- Market-data ingress ---
     auto& bridge = quantumflow::global_bridge();
     int bridge_socket_fd = open_bridge_socket(cfg.bridge_socket_path);
     uint64_t bridge_socket_rx = 0;
     uint64_t bridge_socket_bad = 0;
 
-    // --- Recent trades buffer per symbol ---
     std::unordered_map<std::string, std::vector<quantumflow::TradeInfo>> recent_trades;
     for (const auto& sym : cfg.symbols)
         recent_trades[sym] = {};
 
-    // --- Order ID counter (for incoming market data that needs IDs) ---
     uint64_t next_order_id = 1;
 
-    // --- WebSocket server setup ---
 #ifndef QUANTUMFLOW_HEADLESS
     quantumflow::WsServer ws_server;
     std::vector<quantumflow::TradeInfo> ws_trade_buffer;
@@ -179,7 +172,6 @@ int main(int argc, char* argv[]) {
     while (running) {
         uint64_t loop_start = now_ns();
 
-        // --- Drain ingress ---
         int drained = 0;
         constexpr int MAX_DRAIN_PER_FRAME = 256;
 
@@ -195,7 +187,6 @@ int main(int argc, char* argv[]) {
 
             auto it = books.find(sym);
             if (it == books.end()) {
-                // Create book on-the-fly for unknown symbols
                 books[sym] = std::make_unique<Book>();
                 recent_trades[sym] = {};
                 it = books.find(sym);
@@ -209,13 +200,11 @@ int main(int argc, char* argv[]) {
             const auto& converter = price_reg.get(sym);
 
             if (pkt.event_type == 0) {
-                // Book level update: place as a limit order
                 OrderType ot = (pkt.side == 0) ? BUY : SELL;
                 PRICE internal_price = converter.to_internal(pkt.price);
                 const Trades& trades = it->second->place_order(
                     next_order_id++, 0, ot, internal_price, pkt.quantity);
 
-                // Process fills immediately
                 for (const auto& t : trades) {
                     quantumflow::TradeInfo ti{
                         converter.to_external(t.get_trade_price()),
@@ -230,7 +219,6 @@ int main(int argc, char* argv[]) {
 #endif
                 }
             } else if (pkt.event_type == 1) {
-                // Trade event
                 quantumflow::TradeInfo ti{pkt.price, pkt.quantity, pkt.side, pkt.timestamp_ns};
                 recent_trades[sym].push_back(ti);
                 strategy_engine.on_trade(ti);
@@ -267,7 +255,6 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // --- Run strategies on active symbol's book ---
         uint64_t strat_start = now_ns();
         quantumflow::BookSnapshot snapshot;
         if (!active_symbol.empty()) {
@@ -278,7 +265,6 @@ int main(int argc, char* argv[]) {
                     *bit->second, primary_sym, price_reg.get(primary_sym));
                 snapshot.timestamp_ns = now_ns();
 
-                // Cap recent trades buffer
                 auto& trades_buf = recent_trades[primary_sym];
                 if (trades_buf.size() > 1000) {
                     trades_buf.erase(trades_buf.begin(),
@@ -291,14 +277,12 @@ int main(int argc, char* argv[]) {
         }
         uint64_t strat_end = now_ns();
 
-        // --- WebSocket broadcast at 30 Hz ---
 #ifndef QUANTUMFLOW_HEADLESS
         if (!cfg.headless) {
             uint64_t now = now_ns();
             if (now - last_broadcast_ns >= BROADCAST_INTERVAL_NS) {
                 uint64_t broadcast_start = now_ns();
 
-                // Serialize and broadcast all data types
                 if (!snapshot.symbol.empty()) {
                     ws_server.broadcast(quantumflow::serialize_book(snapshot));
                 }
@@ -310,7 +294,6 @@ int main(int argc, char* argv[]) {
                     quantumflow::serialize_strategies(
                         strategy_engine.all_signals(), now));
 
-                // Latency snapshot
                 uint64_t broadcast_end = now_ns();
                 quantumflow::LatencySnapshot lat{};
                 lat.python_to_cpp_us = latest_python_to_cpp_us;
@@ -322,7 +305,6 @@ int main(int argc, char* argv[]) {
                 ws_server.broadcast(
                     quantumflow::serialize_latency(lat, now));
 
-                // Cap trade buffer for WS (keep last 200)
                 if (ws_trade_buffer.size() > 200) {
                     ws_trade_buffer.erase(
                         ws_trade_buffer.begin(),
@@ -333,12 +315,10 @@ int main(int argc, char* argv[]) {
                 last_broadcast_ns = now;
             }
 
-            // Poll WebSocket I/O (non-blocking)
             ws_server.poll();
         }
 #endif
 
-        // --- Headless console output ---
         if (cfg.headless) {
             loop_count++;
             if (loop_count % 1000 == 0) {

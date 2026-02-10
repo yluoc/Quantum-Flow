@@ -73,9 +73,7 @@ export function useQuantumFlowWs(url: string): QuantumFlowState {
             setStrategies((msg.data as StrategiesPayload).signals);
             break;
         }
-      } catch {
-        // Ignore malformed messages
-      }
+      } catch {}
     };
   }, [url]);
 

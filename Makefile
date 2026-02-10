@@ -3,24 +3,33 @@ JOBS       := $(shell nproc)
 WS_PORT    := 9001
 SYMBOLS    := BTC-USDT-SWAP,ETH-USDT-SWAP
 CHANNELS   := books5,trades
+BUILD_BRIDGE ?= OFF
 BRIDGE_SOCK := /tmp/quantumflow_bridge.sock
 PIPELINE_CTRL_SOCK := /tmp/quantumflow_pipeline_ctrl.sock
 PYTHON     := python3
 PIPELINE_VENV := pipeline/.venv
 
-.PHONY: all configure build run run-engine pipeline-venv pipeline-install pipeline-run web test clean headless
+.PHONY: all configure configure-bridge build build-bridge run run-engine pipeline-venv pipeline-install pipeline-run web test clean headless
 
 ## Default: build everything
 all: build web-install
 
-## Configure CMake (WebUI ON, Bridge OFF)
+## Configure CMake (WebUI ON, Bridge configurable via BUILD_BRIDGE=ON/OFF)
 configure:
 	@mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake -DQUANTUMFLOW_BUILD_WEBUI=ON -DQUANTUMFLOW_BUILD_BRIDGE=OFF ..
+	cd $(BUILD_DIR) && cmake -DQUANTUMFLOW_BUILD_WEBUI=ON -DQUANTUMFLOW_BUILD_BRIDGE=$(BUILD_BRIDGE) ..
+
+## Configure with Python bridge ON (useful for bridge IntelliSense)
+configure-bridge:
+	$(MAKE) configure BUILD_BRIDGE=ON
 
 ## Build C++ engine
 build: configure
 	cd $(BUILD_DIR) && make -j$(JOBS)
+
+## Build with Python bridge ON (includes bridge TU in compile_commands.json)
+build-bridge:
+	$(MAKE) build BUILD_BRIDGE=ON
 
 ## Run C++ engine
 run: run-engine
@@ -59,7 +68,7 @@ test: build
 ## Build headless-only (no WebSocket server)
 headless:
 	@mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake -DQUANTUMFLOW_BUILD_WEBUI=OFF -DQUANTUMFLOW_BUILD_BRIDGE=OFF .. && make -j$(JOBS)
+	cd $(BUILD_DIR) && cmake -DQUANTUMFLOW_BUILD_WEBUI=OFF -DQUANTUMFLOW_BUILD_BRIDGE=$(BUILD_BRIDGE) .. && make -j$(JOBS)
 
 ## Clean build artifacts
 clean:

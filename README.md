@@ -10,7 +10,7 @@ Low-latency trading engine with a Python market-data pipeline and a live web UI.
 
 ## Dashboard Preview
 <p align="center">
-  <img src="./screenshot/update.png.png" alt="QuantumFlow dashboard screenshot" width="1100" />
+  <img src="./screenshot/update.png" alt="QuantumFlow dashboard screenshot" width="1100" />
   <br />
   <em>Live UI: Order Book, Trade Flow, Latency Metrics, and Strategy Signals.</em>
 </p>

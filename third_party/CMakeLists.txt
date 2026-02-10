@@ -1,22 +1,6 @@
 include(FetchContent)
 
 set(QF_THIRD_PARTY_DIR "${CMAKE_CURRENT_LIST_DIR}")
-if(EXISTS "${QF_THIRD_PARTY_DIR}/pybind11/CMakeLists.txt")
-    set(FETCHCONTENT_SOURCE_DIR_pybind11 "${QF_THIRD_PARTY_DIR}/pybind11")
-endif()
-
-# ─────────────────────────────────────────────
-# pybind11
-# ─────────────────────────────────────────────
-if(QUANTUMFLOW_BUILD_BRIDGE)
-    FetchContent_Declare(
-        pybind11
-        GIT_REPOSITORY https://github.com/pybind/pybind11.git
-        GIT_TAG        v2.12.0
-        GIT_SHALLOW    TRUE
-    )
-    FetchContent_MakeAvailable(pybind11)
-endif()
 
 # ─────────────────────────────────────────────
 # uWebSockets + uSockets + nlohmann/json

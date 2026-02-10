@@ -8,7 +8,7 @@ namespace quantumflow {
 
 /// Thread-safe bridge wrapping the lock-free ring buffer for Python→C++ market data transfer.
 /// Uses SPSC (single producer, single consumer) pattern:
-///   Producer: Python pipeline (via PyBind11)
+///   Producer: Python pipeline
 ///   Consumer: C++ main loop
 class MarketDataBridge {
 public:
@@ -46,7 +46,7 @@ private:
     std::atomic<uint64_t> drop_count_{0};
 };
 
-/// Global bridge instance shared between PyBind11 module and C++ main loop.
+/// Global bridge instance shared between Python ingress and the C++ main loop.
 inline MarketDataBridge& global_bridge() {
     static MarketDataBridge instance;
     return instance;

@@ -70,7 +70,7 @@ endif()
 # Options
 # ─────────────────────────────────────────────
 option(QUANTUMFLOW_BUILD_WEBUI "Build with WebSocket UI support" ON)
-option(QUANTUMFLOW_BUILD_BRIDGE "Build PyBind11 bridge module" ON)
+option(QUANTUMFLOW_BUILD_BRIDGE "Build Python bridge module (C-API)" ON)
 option(QUANTUMFLOW_BUILD_TESTS "Build test targets" ON)
 option(QUANTUMFLOW_BUILD_BENCHMARKS "Build benchmark targets" ON)
 
@@ -167,18 +167,17 @@ target_link_libraries(quantumflow_headless PRIVATE
 target_compile_options(quantumflow_headless PRIVATE ${OPT_FLAGS})
 
 # ═══════════════════════════════════════════════
-# PYBIND11 BRIDGE MODULE
+# PYTHON BRIDGE MODULE (C-API)
 # ═══════════════════════════════════════════════
 if(QUANTUMFLOW_BUILD_BRIDGE)
-    pybind11_add_module(quantumflow_bridge
-        bridge/quantumflow_bridge.cpp
+    find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
+    Python3_add_library(quantumflow_uds_bridge MODULE
+        bridge/quantumflow_uds_bridge_capi.c
     )
-
-    target_include_directories(quantumflow_bridge PRIVATE ${QF_ROOT} ${QF_ROOT}/graphics/include)
-    target_link_libraries(quantumflow_bridge PRIVATE
-        orderbook_lib
-    )
-    target_compile_options(quantumflow_bridge PRIVATE ${OPT_FLAGS})
+    set_target_properties(quantumflow_uds_bridge PROPERTIES PREFIX "")
+    target_link_libraries(quantumflow_uds_bridge PRIVATE Python3::Module)
+    target_compile_options(quantumflow_uds_bridge PRIVATE ${OPT_FLAGS})
+    message(STATUS "Bridge build: using C-API quantumflow_uds_bridge module")
 endif()
 
 # ═══════════════════════════════════════════════
@@ -244,7 +243,7 @@ message(STATUS "═════════════════════�
 message(STATUS "  Build type:     ${CMAKE_BUILD_TYPE}")
 message(STATUS "  SIMD flags:     ${SIMD_FLAGS}")
 message(STATUS "  WebUI:          ${QUANTUMFLOW_BUILD_WEBUI}")
-message(STATUS "  PyBind11:       ${QUANTUMFLOW_BUILD_BRIDGE}")
+message(STATUS "  Bridge Module:  ${QUANTUMFLOW_BUILD_BRIDGE}")
 message(STATUS "  Tests:          ${QUANTUMFLOW_BUILD_TESTS}")
 message(STATUS "  Benchmarks:     ${QUANTUMFLOW_BUILD_BENCHMARKS}")
 message(STATUS "═══════════════════════════════════════════════════")

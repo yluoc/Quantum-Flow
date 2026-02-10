@@ -40,13 +40,13 @@ std::string serialize_book(const BookSnapshot& snapshot) {
     return msg.dump();
 }
 
-std::string serialize_trades(const std::vector<TradeInfo>& trades, uint64_t timestamp_ns) {
+std::string serialize_trades(const std::string& symbol, const std::vector<TradeInfo>& trades, uint64_t timestamp_ns) {
     json arr = json::array();
-    // Send most recent 50 trades
     size_t start = trades.size() > 50 ? trades.size() - 50 : 0;
     for (size_t i = start; i < trades.size(); ++i) {
         const auto& t = trades[i];
         arr.push_back({
+            {"symbol", symbol},
             {"price", t.price},
             {"quantity", t.quantity},
             {"side", t.side},
@@ -58,6 +58,7 @@ std::string serialize_trades(const std::vector<TradeInfo>& trades, uint64_t time
         {"type", "trades"},
         {"timestamp_ns", timestamp_ns},
         {"data", {
+            {"symbol", symbol},
             {"trades", arr}
         }}
     };

@@ -3,12 +3,13 @@ import type { TradeData } from '../types/protocol';
 import { formatPrice, formatQty } from '../lib/format';
 
 interface Props {
+  symbol: string;
   trades: TradeData[];
 }
 
 const BUCKET_COUNT = 30;
 
-export default function TradeFlowPanel({ trades }: Props) {
+export default function TradeFlowPanel({ symbol, trades }: Props) {
   const recent = useMemo(() => {
     return [...trades].reverse().slice(0, 50);
   }, [trades]);
@@ -32,7 +33,10 @@ export default function TradeFlowPanel({ trades }: Props) {
 
   return (
     <div className="bg-gray-900 rounded-lg p-4 border border-gray-800 flex flex-col h-full overflow-hidden">
-      <h2 className="text-lg font-semibold mb-2 text-gray-300">Trade Flow</h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-lg font-semibold text-gray-300">Trade Flow</h2>
+        <span className="text-xs text-gray-500">{symbol || 'N/A'}</span>
+      </div>
 
       {/* Volume Histogram */}
       <div className="mb-3">

@@ -14,6 +14,7 @@ export interface BookData {
 }
 
 export interface TradeData {
+  symbol: string;
   price: number;
   quantity: number;
   side: number; // 0=buy, 1=sell
@@ -21,6 +22,7 @@ export interface TradeData {
 }
 
 export interface TradesPayload {
+  symbol: string;
   trades: TradeData[];
 }
 

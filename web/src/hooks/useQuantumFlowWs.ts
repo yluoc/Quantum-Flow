@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import type {
   BookData,
   TradeData,
@@ -11,8 +11,9 @@ import type {
 
 export interface QuantumFlowState {
   connected: boolean;
-  book: BookData | null;
-  trades: TradeData[];
+  symbols: string[];
+  booksBySymbol: Record<string, BookData>;
+  tradesBySymbol: Record<string, TradeData[]>;
   latency: LatencyData | null;
   latencyHistory: LatencyData[];
   strategies: StrategySignalData[];
@@ -23,8 +24,8 @@ const MAX_LATENCY_HISTORY = 120;
 
 export function useQuantumFlowWs(url: string): QuantumFlowState {
   const [connected, setConnected] = useState(false);
-  const [book, setBook] = useState<BookData | null>(null);
-  const [trades, setTrades] = useState<TradeData[]>([]);
+  const [booksBySymbol, setBooksBySymbol] = useState<Record<string, BookData>>({});
+  const [tradesBySymbol, setTradesBySymbol] = useState<Record<string, TradeData[]>>({});
   const [latency, setLatency] = useState<LatencyData | null>(null);
   const [latencyHistory, setLatencyHistory] = useState<LatencyData[]>([]);
   const [strategies, setStrategies] = useState<StrategySignalData[]>([]);
@@ -52,12 +53,18 @@ export function useQuantumFlowWs(url: string): QuantumFlowState {
         const msg: WsMessage = JSON.parse(event.data as string);
 
         switch (msg.type) {
-          case 'book':
-            setBook(msg.data as BookData);
+          case 'book': {
+            const book = msg.data as BookData;
+            setBooksBySymbol(prev => ({ ...prev, [book.symbol]: book }));
             break;
-          case 'trades':
-            setTrades((msg.data as TradesPayload).trades);
+          }
+          case 'trades': {
+            const payload = msg.data as TradesPayload;
+            const symbol = payload.symbol;
+            const trades = payload.trades.map(t => ({ ...t, symbol: t.symbol ?? symbol }));
+            setTradesBySymbol(prev => ({ ...prev, [symbol]: trades }));
             break;
+          }
           case 'latency': {
             const lat = msg.data as LatencyData;
             setLatency(lat);
@@ -77,6 +84,16 @@ export function useQuantumFlowWs(url: string): QuantumFlowState {
     };
   }, [url]);
 
+  const symbols = useMemo(() => {
+    const set = new Set<string>();
+    Object.keys(booksBySymbol).forEach(s => set.add(s));
+    Object.keys(tradesBySymbol).forEach(s => set.add(s));
+    strategies.forEach(s => {
+      if (s.symbol) set.add(s.symbol);
+    });
+    return Array.from(set).sort();
+  }, [booksBySymbol, tradesBySymbol, strategies]);
+
   useEffect(() => {
     connect();
     return () => {
@@ -85,5 +102,5 @@ export function useQuantumFlowWs(url: string): QuantumFlowState {
     };
   }, [connect]);
 
-  return { connected, book, trades, latency, latencyHistory, strategies };
+  return { connected, symbols, booksBySymbol, tradesBySymbol, latency, latencyHistory, strategies };
 }

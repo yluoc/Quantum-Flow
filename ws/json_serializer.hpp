@@ -15,8 +15,8 @@ namespace quantumflow {
 std::string serialize_book(const BookSnapshot& snapshot);
 
 /// Serialize recent trades to the WebSocket JSON protocol.
-/// { "type": "trades", "timestamp_ns": N, "data": { "trades": [...] } }
-std::string serialize_trades(const std::vector<TradeInfo>& trades, uint64_t timestamp_ns);
+/// { "type": "trades", "timestamp_ns": N, "data": { "symbol": "...", "trades": [...] } }
+std::string serialize_trades(const std::string& symbol, const std::vector<TradeInfo>& trades, uint64_t timestamp_ns);
 
 /// Serialize a LatencySnapshot to the WebSocket JSON protocol.
 /// { "type": "latency", "timestamp_ns": N, "data": {...} }

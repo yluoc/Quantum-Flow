@@ -150,7 +150,10 @@ int main(int argc, char* argv[]) {
 
 #ifndef QUANTUMFLOW_HEADLESS
     quantumflow::WsServer ws_server;
-    std::vector<quantumflow::TradeInfo> ws_trade_buffer;
+    std::unordered_map<std::string, std::vector<quantumflow::TradeInfo>> ws_trade_buffers;
+    for (const auto& sym : cfg.symbols) {
+        ws_trade_buffers[sym] = {};
+    }
     uint64_t last_broadcast_ns = 0;
     constexpr uint64_t BROADCAST_INTERVAL_NS = 33'333'333; // ~30 Hz
 
@@ -189,6 +192,9 @@ int main(int argc, char* argv[]) {
             if (it == books.end()) {
                 books[sym] = std::make_unique<Book>();
                 recent_trades[sym] = {};
+#ifndef QUANTUMFLOW_HEADLESS
+                ws_trade_buffers[sym] = {};
+#endif
                 it = books.find(sym);
             }
 
@@ -215,7 +221,7 @@ int main(int argc, char* argv[]) {
                     recent_trades[sym].push_back(ti);
                     strategy_engine.on_trade(ti);
 #ifndef QUANTUMFLOW_HEADLESS
-                    if (!cfg.headless) ws_trade_buffer.push_back(ti);
+                    if (!cfg.headless) ws_trade_buffers[sym].push_back(ti);
 #endif
                 }
             } else if (pkt.event_type == 1) {
@@ -223,7 +229,7 @@ int main(int argc, char* argv[]) {
                 recent_trades[sym].push_back(ti);
                 strategy_engine.on_trade(ti);
 #ifndef QUANTUMFLOW_HEADLESS
-                if (!cfg.headless) ws_trade_buffer.push_back(ti);
+                if (!cfg.headless) ws_trade_buffers[sym].push_back(ti);
 #endif
             }
         };
@@ -283,12 +289,23 @@ int main(int argc, char* argv[]) {
             if (now - last_broadcast_ns >= BROADCAST_INTERVAL_NS) {
                 uint64_t broadcast_start = now_ns();
 
-                if (!snapshot.symbol.empty()) {
-                    ws_server.broadcast(quantumflow::serialize_book(snapshot));
+                for (const auto& [sym, book_ptr] : books) {
+                    quantumflow::BookSnapshot ws_snapshot = quantumflow::BookSnapshot::from_book(
+                        *book_ptr, sym, price_reg.get(sym));
+                    ws_snapshot.timestamp_ns = now;
+                    ws_server.broadcast(quantumflow::serialize_book(ws_snapshot));
                 }
 
-                ws_server.broadcast(
-                    quantumflow::serialize_trades(ws_trade_buffer, now));
+                for (auto& [sym, trades] : ws_trade_buffers) {
+                    ws_server.broadcast(
+                        quantumflow::serialize_trades(sym, trades, now));
+                    if (trades.size() > 200) {
+                        trades.erase(
+                            trades.begin(),
+                            trades.begin() +
+                                static_cast<long>(trades.size() - 200));
+                    }
+                }
 
                 ws_server.broadcast(
                     quantumflow::serialize_strategies(
@@ -304,13 +321,6 @@ int main(int argc, char* argv[]) {
 
                 ws_server.broadcast(
                     quantumflow::serialize_latency(lat, now));
-
-                if (ws_trade_buffer.size() > 200) {
-                    ws_trade_buffer.erase(
-                        ws_trade_buffer.begin(),
-                        ws_trade_buffer.begin() +
-                            static_cast<long>(ws_trade_buffer.size() - 200));
-                }
 
                 last_broadcast_ns = now;
             }

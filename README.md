@@ -38,12 +38,25 @@ Low-latency trading engine with a Python market-data pipeline and a live web UI.
      --cpp-bridge
    ```
 
-## Layout
-- `bridge/` shared-memory bridge + bindings
-- `pipeline/` Python market-data pipeline
-- `strategies/` trading strategies
-- `web/` dashboard UI
-- `orderbook/` LOB implementation
+## Project Layout
+```text
+quantumflow/
+├── main.cpp                 # C++ engine entrypoint
+├── CMakeLists.txt           # Build configuration
+├── Makefile                 # Common dev/build/run commands
+├── bridge/                  # Python -> C++ ingress bridge
+├── common/                  # Shared C++ data models/utilities
+├── orderbook/               # Limit order book core + tests/bench
+├── pipeline/                # Python market-data ingest/normalize/sinks
+├── strategies/              # Strategy interfaces + implementations
+├── ws/                      # C++ WebSocket server + JSON serializers
+├── web/                     # React/Tailwind dashboard
+├── tests/                   # C++ unit tests (engine/bridge/strategies)
+├── third_party/             # Dependency setup via CMake FetchContent
+├── graphics/
+│   └── include/memory/allocator.h  # Shared allocator utilities
+└── screenshot/              # README/UI assets
+```
 
 ## Notes
 Pass `--headless` to run without the WebUI, and `--symbols` to set instruments.

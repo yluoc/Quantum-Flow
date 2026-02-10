@@ -2,6 +2,8 @@
 
 #include "strategies/strategy_base.hpp"
 #include <deque>
+#include <cmath>
+#include <algorithm>
 
 namespace quantumflow {
 
@@ -25,17 +27,33 @@ public:
         }
         if (price_history_.size() < 2) return Signal::NEUTRAL;
 
-        double returns = (price_history_.back() - price_history_.front())
-                         / price_history_.front();
+        const double returns = current_return();
 
         if (returns > threshold_) return Signal::BUY;
         if (returns < -threshold_) return Signal::SELL;
         return Signal::NEUTRAL;
     }
 
+    double confidence(const BookSnapshot&,
+                      const std::vector<TradeInfo>&,
+                      Signal signal) const override {
+        if (signal == Signal::NEUTRAL || price_history_.size() < 2) return 0.0;
+
+        const double threshold = std::max(std::abs(threshold_), 1e-9);
+        const double excess = std::abs(current_return()) - threshold;
+        return clamp_confidence(excess / threshold);
+    }
+
     void reset() override { price_history_.clear(); }
 
 private:
+    double current_return() const {
+        if (price_history_.size() < 2 || std::abs(price_history_.front()) < 1e-12) {
+            return 0.0;
+        }
+        return (price_history_.back() - price_history_.front()) / price_history_.front();
+    }
+
     size_t window_;
     double threshold_;
     std::deque<double> price_history_;

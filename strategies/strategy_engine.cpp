@@ -1,5 +1,6 @@
 #include "strategies/strategy_engine.hpp"
 #include <chrono>
+#include <algorithm>
 
 namespace quantumflow {
 
@@ -23,7 +24,9 @@ std::vector<StrategySignal> StrategyEngine::evaluate(
         ss.strategy_name = strat->name();
         ss.symbol = snapshot.symbol;
         ss.signal = sig;
-        ss.confidence = 1.0;
+        ss.confidence = std::clamp(
+            strat->confidence(snapshot, recent_trades, sig),
+            0.0, 1.0);
         ss.timestamp_ns = now_ns;
 
         latest_signals_[ss.strategy_name] = ss;

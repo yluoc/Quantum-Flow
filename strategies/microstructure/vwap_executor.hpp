@@ -3,6 +3,7 @@
 #include "strategies/strategy_base.hpp"
 #include <vector>
 #include <numeric>
+#include <algorithm>
 
 namespace quantumflow {
 
@@ -30,23 +31,31 @@ public:
 
     Signal evaluate(const BookSnapshot& snapshot,
                     const std::vector<TradeInfo>&) override {
+        (void)snapshot;
         if (total_quantity_ == 0 || executed_quantity_ >= total_quantity_)
             return Signal::NEUTRAL;
 
-        // Determine current slice
-        size_t current_slice = elapsed_ms_ / 1000;
-        if (current_slice >= volume_profile_.size())
+        uint64_t target_qty = 0;
+        if (!compute_target_quantity(target_qty))
             return Signal::NEUTRAL;
-
-        double target_fraction = 0.0;
-        for (size_t i = 0; i <= current_slice; ++i)
-            target_fraction += volume_profile_[i];
-
-        uint64_t target_qty = static_cast<uint64_t>(
-            static_cast<double>(total_quantity_) * target_fraction);
 
         if (executed_quantity_ < target_qty) return Signal::BUY;
         return Signal::NEUTRAL;
+    }
+
+    double confidence(const BookSnapshot&,
+                      const std::vector<TradeInfo>&,
+                      Signal signal) const override {
+        if (signal != Signal::BUY || total_quantity_ == 0 || executed_quantity_ >= total_quantity_)
+            return 0.0;
+
+        uint64_t target_qty = 0;
+        if (!compute_target_quantity(target_qty) || executed_quantity_ >= target_qty)
+            return 0.0;
+
+        const uint64_t deficit = target_qty - executed_quantity_;
+        const uint64_t remaining = std::max<uint64_t>(1, total_quantity_ - executed_quantity_);
+        return clamp_confidence(static_cast<double>(deficit) / static_cast<double>(remaining));
     }
 
     void on_trade(const TradeInfo& trade) override {
@@ -61,6 +70,20 @@ public:
     void advance_time(uint64_t delta_ms) { elapsed_ms_ += delta_ms; }
 
 private:
+    bool compute_target_quantity(uint64_t& out_target_qty) const {
+        size_t current_slice = elapsed_ms_ / 1000;
+        if (current_slice >= volume_profile_.size())
+            return false;
+
+        double target_fraction = 0.0;
+        for (size_t i = 0; i <= current_slice; ++i)
+            target_fraction += volume_profile_[i];
+
+        out_target_qty = static_cast<uint64_t>(
+            static_cast<double>(total_quantity_) * target_fraction);
+        return true;
+    }
+
     uint64_t total_quantity_;
     uint64_t time_horizon_ms_;
     std::vector<double> volume_profile_;

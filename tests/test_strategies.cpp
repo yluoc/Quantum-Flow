@@ -55,6 +55,32 @@ TEST(OrderBookImbalance, NeutralOnBalanced) {
     EXPECT_EQ(strat.evaluate(snap, {}), Signal::NEUTRAL);
 }
 
+TEST(OrderBookImbalance, ConfidenceIncreasesWithImbalanceStrength) {
+    OrderBookImbalance strat(3, 0.3);
+
+    auto weak = make_snapshot(
+        {{100.0, 620, 3}, {99.0, 600, 3}, {98.0, 580, 3}},
+        {{101.0, 380, 3}, {102.0, 400, 3}, {103.0, 420, 3}}
+    );
+    auto strong = make_snapshot(
+        {{100.0, 1200, 3}, {99.0, 1100, 3}, {98.0, 1000, 3}},
+        {{101.0, 150, 3}, {102.0, 140, 3}, {103.0, 130, 3}}
+    );
+
+    Signal weak_sig = strat.evaluate(weak, {});
+    Signal strong_sig = strat.evaluate(strong, {});
+    double weak_conf = strat.confidence(weak, {}, weak_sig);
+    double strong_conf = strat.confidence(strong, {}, strong_sig);
+
+    EXPECT_EQ(weak_sig, Signal::BUY);
+    EXPECT_EQ(strong_sig, Signal::BUY);
+    EXPECT_GE(weak_conf, 0.0);
+    EXPECT_LE(weak_conf, 1.0);
+    EXPECT_GE(strong_conf, 0.0);
+    EXPECT_LE(strong_conf, 1.0);
+    EXPECT_GT(strong_conf, weak_conf);
+}
+
 // --- MarketMaker ---
 
 TEST(MarketMaker, NeutralOnZeroInventory) {
@@ -218,4 +244,23 @@ TEST(StrategyEngine, RunsAllStrategies) {
     EXPECT_EQ(signals.size(), 2u);
     EXPECT_EQ(signals[0].strategy_name, "OrderBookImbalance");
     EXPECT_EQ(signals[1].strategy_name, "Momentum");
+    for (const auto& s : signals) {
+        EXPECT_GE(s.confidence, 0.0);
+        EXPECT_LE(s.confidence, 1.0);
+    }
+}
+
+TEST(StrategyEngine, ConfidenceReflectsSignalStrength) {
+    StrategyEngine engine;
+    engine.add_strategy(std::make_unique<OrderBookImbalance>(3, 0.2));
+
+    auto snap = make_snapshot(
+        {{100.0, 2000, 3}, {99.0, 1800, 3}, {98.0, 1600, 3}},
+        {{101.0, 100, 3}, {102.0, 90, 3}, {103.0, 80, 3}}
+    );
+
+    auto signals = engine.evaluate(snap, {});
+    ASSERT_EQ(signals.size(), 1u);
+    EXPECT_EQ(signals[0].signal, Signal::BUY);
+    EXPECT_GT(signals[0].confidence, 0.0);
 }

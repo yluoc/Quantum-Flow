@@ -2,6 +2,7 @@
 
 #include "strategies/strategy_base.hpp"
 #include <algorithm>
+#include <cmath>
 
 namespace quantumflow {
 
@@ -17,6 +18,26 @@ public:
 
     Signal evaluate(const BookSnapshot& snapshot,
                     const std::vector<TradeInfo>&) override {
+        double imbalance = compute_imbalance(snapshot);
+
+        if (imbalance > threshold_) return Signal::BUY;
+        if (imbalance < -threshold_) return Signal::SELL;
+        return Signal::NEUTRAL;
+    }
+
+    double confidence(const BookSnapshot& snapshot,
+                      const std::vector<TradeInfo>&,
+                      Signal signal) const override {
+        if (signal == Signal::NEUTRAL) return 0.0;
+
+        const double imbalance = std::abs(compute_imbalance(snapshot));
+        const double threshold = std::max(std::abs(threshold_), 1e-9);
+        const double excess = imbalance - threshold;
+        return clamp_confidence(excess / threshold);
+    }
+
+private:
+    double compute_imbalance(const BookSnapshot& snapshot) const {
         double bid_volume = 0.0;
         double ask_volume = 0.0;
 
@@ -29,16 +50,11 @@ public:
             ask_volume += static_cast<double>(snapshot.asks[i].quantity);
 
         double total = bid_volume + ask_volume;
-        if (total < 1e-9) return Signal::NEUTRAL;
+        if (total < 1e-9) return 0.0;
 
-        double imbalance = (bid_volume - ask_volume) / total;
-
-        if (imbalance > threshold_) return Signal::BUY;
-        if (imbalance < -threshold_) return Signal::SELL;
-        return Signal::NEUTRAL;
+        return (bid_volume - ask_volume) / total;
     }
 
-private:
     size_t top_n_;
     double threshold_;
 };

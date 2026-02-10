@@ -2,6 +2,7 @@
 
 #include "strategies/strategy_base.hpp"
 #include <cmath>
+#include <algorithm>
 
 namespace quantumflow {
 
@@ -21,15 +22,31 @@ public:
 
     Signal evaluate(const BookSnapshot&,
                     const std::vector<TradeInfo>&) override {
-        // When funding > threshold, shorts pay longs → go long spot, short perp
         if (funding_rate_ > threshold_)
             return Signal::LONG_SPOT_SHORT_PERP;
 
-        // When funding < -threshold, longs pay shorts → short spot, long perp
         if (funding_rate_ < -threshold_)
             return Signal::SHORT_SPOT_LONG_PERP;
 
         return Signal::NEUTRAL;
+    }
+
+    double confidence(const BookSnapshot&,
+                      const std::vector<TradeInfo>&,
+                      Signal signal) const override {
+        if (signal == Signal::NEUTRAL) return 0.0;
+
+        const double threshold = std::max(std::abs(threshold_), 1e-9);
+        const double funding_excess = std::abs(funding_rate_) - threshold;
+        const double funding_score = clamp_confidence(funding_excess / threshold);
+
+        double basis_score = 0.0;
+        if (spot_price_ > 1e-9 && perp_price_ > 1e-9) {
+            const double basis = std::abs(perp_price_ - spot_price_) / spot_price_;
+            basis_score = clamp_confidence(basis / 0.01); // 1% basis -> max contribution
+        }
+
+        return clamp_confidence(0.7 * funding_score + 0.3 * basis_score);
     }
 
     void reset() override {

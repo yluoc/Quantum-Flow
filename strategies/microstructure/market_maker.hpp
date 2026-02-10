@@ -2,6 +2,7 @@
 
 #include "strategies/strategy_base.hpp"
 #include <utility>
+#include <cmath>
 
 namespace quantumflow {
 
@@ -19,12 +20,21 @@ public:
                     const std::vector<TradeInfo>&) override {
         if (snapshot.mid_price <= 0.0) return Signal::NEUTRAL;
 
-        double inventory_ratio = inventory_ / max_inventory_;
+        double inventory_ratio = inventory_ratio_abs_signed();
 
-        // If inventory is too long, signal to sell; too short, signal to buy
         if (inventory_ratio > 0.5) return Signal::SELL;
         if (inventory_ratio < -0.5) return Signal::BUY;
         return Signal::NEUTRAL;
+    }
+
+    double confidence(const BookSnapshot&,
+                      const std::vector<TradeInfo>&,
+                      Signal signal) const override {
+        if (signal == Signal::NEUTRAL) return 0.0;
+
+        const double ratio = std::abs(inventory_ratio_abs_signed());
+        const double excess = ratio - 0.5;
+        return clamp_confidence(excess / 0.5);
     }
 
     void on_trade(const TradeInfo& trade) override {
@@ -46,6 +56,11 @@ public:
     }
 
 private:
+    double inventory_ratio_abs_signed() const {
+        if (std::abs(max_inventory_) < 1e-12) return 0.0;
+        return inventory_ / max_inventory_;
+    }
+
     double max_inventory_;
     double base_spread_;
     double inventory_ = 0.0;

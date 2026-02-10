@@ -2,6 +2,7 @@
 
 #include "strategies/strategy_base.hpp"
 #include <cmath>
+#include <algorithm>
 
 namespace quantumflow {
 
@@ -22,15 +23,31 @@ public:
         if (recent_trades.empty() || snapshot.bids.empty())
             return Signal::NEUTRAL;
 
-        // Check for iceberg orders near best bid and best ask
-        bool iceberg_bid = detect_iceberg(recent_trades, snapshot.best_bid);
-        bool iceberg_ask = detect_iceberg(recent_trades, snapshot.best_ask);
+        const double bid_strength = iceberg_strength(recent_trades, snapshot.best_bid);
+        const double ask_strength = iceberg_strength(recent_trades, snapshot.best_ask);
+        const bool iceberg_bid = bid_strength > 1.0;
+        const bool iceberg_ask = ask_strength > 1.0;
 
-        // Large hidden bid support → BUY signal
         if (iceberg_bid && !iceberg_ask) return Signal::BUY;
-        // Large hidden ask pressure → SELL signal
         if (iceberg_ask && !iceberg_bid) return Signal::SELL;
         return Signal::NEUTRAL;
+    }
+
+    double confidence(const BookSnapshot& snapshot,
+                      const std::vector<TradeInfo>& recent_trades,
+                      Signal signal) const override {
+        if (signal == Signal::NEUTRAL || recent_trades.empty() || snapshot.bids.empty())
+            return 0.0;
+
+        const double bid_strength = iceberg_strength(recent_trades, snapshot.best_bid);
+        const double ask_strength = iceberg_strength(recent_trades, snapshot.best_ask);
+
+        const double side_strength = (signal == Signal::BUY) ? bid_strength : ask_strength;
+        const double opp_strength = (signal == Signal::BUY) ? ask_strength : bid_strength;
+
+        const double side_score = clamp_confidence(side_strength - 1.0);
+        const double opp_score = clamp_confidence(opp_strength - 1.0);
+        return clamp_confidence(side_score * (1.0 - opp_score));
     }
 
 private:
@@ -38,8 +55,8 @@ private:
     uint64_t min_volume_;
     double price_tolerance_;
 
-    bool detect_iceberg(const std::vector<TradeInfo>& trades,
-                        double price_level) const {
+    double iceberg_strength(const std::vector<TradeInfo>& trades,
+                            double price_level) const {
         int fill_count = 0;
         uint64_t total_volume = 0;
 
@@ -49,7 +66,12 @@ private:
                 total_volume += trade.quantity;
             }
         }
-        return fill_count > min_fills_ && total_volume > min_volume_;
+
+        const double fill_den = static_cast<double>(std::max(1, min_fills_));
+        const double vol_den = static_cast<double>(std::max<uint64_t>(1, min_volume_));
+        const double fill_ratio = static_cast<double>(fill_count) / fill_den;
+        const double vol_ratio = static_cast<double>(total_volume) / vol_den;
+        return std::min(fill_ratio, vol_ratio);
     }
 };
 

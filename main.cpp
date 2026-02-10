@@ -33,6 +33,7 @@
 #include "ws/ws_server.hpp"
 #include "ws/json_serializer.hpp"
 #include "common/latency_snapshot.hpp"
+#include <nlohmann/json.hpp>
 #endif
 
 using Clock = std::chrono::steady_clock;
@@ -50,6 +51,7 @@ struct Config {
     bool headless = false;
     int ws_port = 9001;
     std::string bridge_socket_path = "/tmp/quantumflow_bridge.sock";
+    std::string pipeline_control_socket_path = "/tmp/quantumflow_pipeline_ctrl.sock";
 };
 
 static Config parse_args(int argc, char* argv[]) {
@@ -70,6 +72,8 @@ static Config parse_args(int argc, char* argv[]) {
             cfg.ws_port = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--bridge-socket") == 0 && i + 1 < argc) {
             cfg.bridge_socket_path = argv[++i];
+        } else if (std::strcmp(argv[i], "--pipeline-control-socket") == 0 && i + 1 < argc) {
+            cfg.pipeline_control_socket_path = argv[++i];
         }
     }
     return cfg;
@@ -108,6 +112,46 @@ static int open_bridge_socket(const std::string& path) {
     return fd;
 }
 
+#ifndef QUANTUMFLOW_HEADLESS
+static bool send_pipeline_symbol_update(
+    const std::string& control_socket_path,
+    const std::vector<std::string>& symbols) {
+    if (symbols.empty()) return false;
+    if (control_socket_path.size() >= sizeof(sockaddr_un::sun_path)) {
+        std::fprintf(stderr, "Pipeline control socket path too long: %s\n",
+                     control_socket_path.c_str());
+        return false;
+    }
+
+    nlohmann::json msg = {
+        {"type", "set_symbols"},
+        {"symbols", symbols}
+    };
+    const std::string payload = msg.dump();
+
+    int fd = ::socket(AF_UNIX, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        std::fprintf(stderr, "Failed to create control socket: %s\n", std::strerror(errno));
+        return false;
+    }
+
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", control_socket_path.c_str());
+
+    ssize_t sent = ::sendto(fd, payload.data(), payload.size(), 0,
+                            reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    ::close(fd);
+
+    if (sent < 0) {
+        std::fprintf(stderr, "Failed to send symbols to pipeline control socket %s: %s\n",
+                     control_socket_path.c_str(), std::strerror(errno));
+        return false;
+    }
+    return true;
+}
+#endif
+
 int main(int argc, char* argv[]) {
     Config cfg = parse_args(argc, argv);
 
@@ -120,6 +164,7 @@ int main(int argc, char* argv[]) {
     for (const auto& s : cfg.symbols) std::printf(" %s", s.c_str());
     std::printf("\nMode: %s\n", cfg.headless ? "headless" : "WebUI");
     std::printf("Bridge Socket: %s\n", cfg.bridge_socket_path.c_str());
+    std::printf("Pipeline Control Socket: %s\n", cfg.pipeline_control_socket_path.c_str());
 
     quantumflow::PriceConverterRegistry price_reg(100.0);
 
@@ -158,6 +203,30 @@ int main(int argc, char* argv[]) {
     constexpr uint64_t BROADCAST_INTERVAL_NS = 33'333'333; // ~30 Hz
 
     if (!cfg.headless) {
+        ws_server.set_message_handler([&cfg](const std::string& raw_msg) {
+            try {
+                auto msg = nlohmann::json::parse(raw_msg);
+                if (!msg.is_object() || msg.value("type", "") != "set_symbols") {
+                    return;
+                }
+                const auto symbols_json = msg.find("symbols");
+                if (symbols_json == msg.end() || !symbols_json->is_array()) {
+                    return;
+                }
+                std::vector<std::string> symbols;
+                symbols.reserve(symbols_json->size());
+                for (const auto& item : *symbols_json) {
+                    if (!item.is_string()) continue;
+                    std::string symbol = item.get<std::string>();
+                    if (!symbol.empty()) symbols.push_back(std::move(symbol));
+                }
+                if (symbols.empty()) {
+                    return;
+                }
+                (void)send_pipeline_symbol_update(cfg.pipeline_control_socket_path, symbols);
+            } catch (...) {
+            }
+        });
         if (!ws_server.init(cfg.ws_port)) {
             std::fprintf(stderr, "Failed to init WebSocket server, falling back to headless\n");
             cfg.headless = true;

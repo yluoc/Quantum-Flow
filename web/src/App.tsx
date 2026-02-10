@@ -10,6 +10,7 @@ const WS_URL = `ws://${window.location.hostname || 'localhost'}:9001`;
 
 export default function App() {
   const state = useQuantumFlowWs(WS_URL);
+  const { setSymbols } = state;
   const [selectedSymbol, setSelectedSymbol] = useState<string>('');
 
   useEffect(() => {
@@ -21,6 +22,11 @@ export default function App() {
       setSelectedSymbol(state.symbols[0]);
     }
   }, [state.symbols, selectedSymbol]);
+
+  useEffect(() => {
+    if (!state.connected || !selectedSymbol) return;
+    setSymbols([selectedSymbol]);
+  }, [state.connected, selectedSymbol, setSymbols]);
 
   const selectedBook = selectedSymbol ? state.booksBySymbol[selectedSymbol] ?? null : null;
   const selectedTrades = selectedSymbol ? state.tradesBySymbol[selectedSymbol] ?? [] : [];

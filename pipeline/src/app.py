@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
+import os
 import signal
+import socket
 import sys
 
 from src.metrics import RollingMetrics
@@ -23,6 +26,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _normalize_symbols(symbols: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in symbols:
+        sym = raw.strip()
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        out.append(sym)
+    return out
+
+
 async def main_loop(
     url: str,
     symbols: list[str],
@@ -31,6 +46,7 @@ async def main_loop(
     enable_jsonl: bool,
     enable_cpp_bridge: bool,
     bridge_socket: str,
+    control_socket: str,
     csv_export_path: str | None,
     csv_export_interval: float,
 ) -> None:
@@ -56,6 +72,10 @@ async def main_loop(
         sinks.append(CppBridgeSink(socket_path=bridge_socket))
 
     metrics = RollingMetrics(window_seconds=5.0)
+    symbol_state = {
+        "symbols": _normalize_symbols(symbols),
+        "version": 0,
+    }
 
     async def metrics_printer():
         while not stop.is_set():
@@ -72,28 +92,112 @@ async def main_loop(
                 except Exception as e:
                     logger.error(f"Error exporting CSV: {e}", exc_info=True)
 
-    async def process_stream():
+    async def control_listener():
+        if not control_socket:
+            return
+
+        if len(control_socket) >= 100:
+            logger.warning("Control socket path may be too long for AF_UNIX: %s", control_socket)
+
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        sock.setblocking(False)
+        loop = asyncio.get_running_loop()
+
         try:
-            async for ts_recv_epoch_ms, ts_recv_mono_ns, ts_decoded_mono_ns, msg in okx_stream(url, symbols, channels, stop):
-                events = normalize_okx(ts_recv_epoch_ms, ts_recv_mono_ns, ts_decoded_mono_ns, msg)
-                if not events:
+            try:
+                os.unlink(control_socket)
+            except FileNotFoundError:
+                pass
+
+            sock.bind(control_socket)
+            logger.info("Listening for symbol updates on %s", control_socket)
+
+            while not stop.is_set():
+                try:
+                    data = await asyncio.wait_for(loop.sock_recv(sock, 4096), timeout=0.5)
+                except asyncio.TimeoutError:
+                    continue
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    logger.error("Control socket receive error: %s", e, exc_info=True)
+                    await asyncio.sleep(0.5)
                     continue
 
-                for event in events:
-                    metrics.update(event)
+                if not data:
+                    continue
 
-                    for sink in sinks:
-                        try:
-                            await sink.write(event)
-                        except Exception as e:
-                            logger.error(f"Error writing to sink {type(sink).__name__}: {e}", exc_info=True)
-        except Exception as e:
-            logger.error(f"Error in stream processing: {e}", exc_info=True)
-            stop.set()
+                try:
+                    msg = json.loads(data.decode("utf-8", errors="ignore"))
+                except json.JSONDecodeError:
+                    continue
+
+                if not isinstance(msg, dict) or msg.get("type") != "set_symbols":
+                    continue
+
+                incoming = msg.get("symbols")
+                if not isinstance(incoming, list):
+                    continue
+
+                next_symbols = _normalize_symbols([str(s) for s in incoming])
+                if not next_symbols:
+                    continue
+
+                if next_symbols != symbol_state["symbols"]:
+                    symbol_state["symbols"] = next_symbols
+                    symbol_state["version"] += 1
+                    logger.info("Updated active symbol subscriptions: %s", next_symbols)
+        finally:
+            try:
+                sock.close()
+            finally:
+                try:
+                    os.unlink(control_socket)
+                except FileNotFoundError:
+                    pass
+
+    async def process_stream():
+        while not stop.is_set():
+            active_symbols = list(symbol_state["symbols"])
+            stream_version = int(symbol_state["version"])
+
+            if not active_symbols:
+                await asyncio.sleep(0.25)
+                continue
+
+            logger.info("Opening OKX stream with symbols=%s", active_symbols)
+
+            try:
+                async for ts_recv_epoch_ms, ts_recv_mono_ns, ts_decoded_mono_ns, msg in okx_stream(
+                    url, active_symbols, channels, stop
+                ):
+                    events = normalize_okx(ts_recv_epoch_ms, ts_recv_mono_ns, ts_decoded_mono_ns, msg)
+                    if not events:
+                        if symbol_state["version"] != stream_version:
+                            logger.info("Detected symbol update, reconnecting stream")
+                            break
+                        continue
+
+                    for event in events:
+                        metrics.update(event)
+
+                        for sink in sinks:
+                            try:
+                                await sink.write(event)
+                            except Exception as e:
+                                logger.error(f"Error writing to sink {type(sink).__name__}: {e}", exc_info=True)
+
+                    if symbol_state["version"] != stream_version:
+                        logger.info("Detected symbol update, reconnecting stream")
+                        break
+            except Exception as e:
+                logger.error(f"Error in stream processing: {e}", exc_info=True)
+                await asyncio.sleep(1.0)
 
     tasks = [
         asyncio.create_task(process_stream()),
         asyncio.create_task(metrics_printer()),
+        asyncio.create_task(control_listener()),
     ]
     if csv_export_path:
         tasks.append(asyncio.create_task(csv_exporter()))
@@ -190,6 +294,12 @@ def parse_args() -> argparse.Namespace:
         default="/tmp/quantumflow_bridge.sock",
         help="Unix socket path used by the C++ bridge sink",
     )
+    parser.add_argument(
+        "--control-socket",
+        type=str,
+        default="/tmp/quantumflow_pipeline_ctrl.sock",
+        help="Unix datagram socket path used for runtime symbol updates",
+    )
     return parser.parse_args()
 
 
@@ -212,6 +322,7 @@ def main() -> None:
         f"Sinks: stdout={not args.no_stdout}, jsonl={not args.no_jsonl}, "
         f"cpp_bridge={args.cpp_bridge} socket={args.bridge_socket}"
     )
+    logger.info("Control socket: %s", args.control_socket)
     if args.csv_export:
         logger.info(f"CSV export: {args.csv_export} (interval: {args.csv_export_interval}s)")
 
@@ -224,6 +335,7 @@ def main() -> None:
             enable_jsonl=not args.no_jsonl,
             enable_cpp_bridge=args.cpp_bridge,
             bridge_socket=args.bridge_socket,
+            control_socket=args.control_socket,
             csv_export_path=args.csv_export,
             csv_export_interval=args.csv_export_interval,
         ))

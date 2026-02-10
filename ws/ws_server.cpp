@@ -22,6 +22,8 @@ struct WsServer::Impl {
     std::thread event_thread;
     std::atomic<bool> running{false};
     std::atomic<size_t> client_count{0};
+    MessageHandler message_handler;
+    std::mutex message_handler_mutex;
 
     std::mutex init_mutex;
     std::condition_variable init_cv;
@@ -56,8 +58,16 @@ bool WsServer::init(int port) {
                             impl_->clients.size());
             },
 
-            .message = [](auto* /*ws*/, std::string_view /*message*/,
-                          uWS::OpCode /*opCode*/) {
+            .message = [this](auto* /*ws*/, std::string_view message,
+                              uWS::OpCode /*opCode*/) {
+                MessageHandler handler;
+                {
+                    std::lock_guard<std::mutex> lock(impl_->message_handler_mutex);
+                    handler = impl_->message_handler;
+                }
+                if (handler) {
+                    handler(std::string(message));
+                }
             },
 
             .close = [this](auto* ws, int /*code*/,
@@ -112,6 +122,11 @@ void WsServer::broadcast(const std::string& message) {
             ws->send(msg, uWS::OpCode::TEXT, false);
         }
     });
+}
+
+void WsServer::set_message_handler(MessageHandler handler) {
+    std::lock_guard<std::mutex> lock(impl_->message_handler_mutex);
+    impl_->message_handler = std::move(handler);
 }
 
 void WsServer::shutdown() {

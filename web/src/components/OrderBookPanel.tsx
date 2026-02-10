@@ -67,39 +67,54 @@ export default function OrderBookPanel({ book }: Props) {
         </div>
       </div>
 
-      {/* Price Ladder */}
-      <div className="flex-1 overflow-auto text-xs">
-        <table className="w-full">
-          <thead className="sticky top-0 bg-gray-900">
-            <tr className="text-gray-500 border-b border-gray-800">
-              <th className="text-right py-1 px-1">Bid Qty</th>
-              <th className="text-right py-1 px-1">#</th>
-              <th className="text-center py-1 px-1">Price</th>
-              <th className="text-left py-1 px-1">#</th>
-              <th className="text-left py-1 px-1">Ask Qty</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...book.asks].reverse().map((lvl, i) => (
-              <tr key={`a${i}`} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                <td className="text-right py-0.5 px-1"></td>
-                <td className="text-right py-0.5 px-1"></td>
-                <td className="text-center py-0.5 px-1 text-red-400">{formatPrice(lvl.price)}</td>
-                <td className="text-left py-0.5 px-1 text-gray-500">{lvl.order_count}</td>
-                <td className="text-left py-0.5 px-1 text-red-400">{formatQty(lvl.quantity)}</td>
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2 min-h-0 text-xs">
+        <div className="rounded border border-gray-800 bg-gray-950/30 overflow-auto">
+          <div className="sticky top-0 z-10 bg-gray-900/95 border-b border-gray-800 px-2 py-1 text-green-400 font-semibold">
+            Bids
+          </div>
+          <table className="w-full">
+            <thead className="sticky top-7 bg-gray-900/95">
+              <tr className="text-gray-500 border-b border-gray-800">
+                <th className="text-right py-1 px-2">Qty</th>
+                <th className="text-right py-1 px-2">#</th>
+                <th className="text-right py-1 px-2">Price</th>
               </tr>
-            ))}
-            {book.bids.map((lvl, i) => (
-              <tr key={`b${i}`} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                <td className="text-right py-0.5 px-1 text-green-400">{formatQty(lvl.quantity)}</td>
-                <td className="text-right py-0.5 px-1 text-gray-500">{lvl.order_count}</td>
-                <td className="text-center py-0.5 px-1 text-green-400">{formatPrice(lvl.price)}</td>
-                <td className="text-left py-0.5 px-1"></td>
-                <td className="text-left py-0.5 px-1"></td>
+            </thead>
+            <tbody>
+              {book.bids.map((lvl, i) => (
+                <tr key={`b${i}`} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                  <td className="text-right py-0.5 px-2 text-green-400">{formatQty(lvl.quantity)}</td>
+                  <td className="text-right py-0.5 px-2 text-gray-500">{lvl.order_count}</td>
+                  <td className="text-right py-0.5 px-2 text-green-400">{formatPrice(lvl.price)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="rounded border border-gray-800 bg-gray-950/30 overflow-auto">
+          <div className="sticky top-0 z-10 bg-gray-900/95 border-b border-gray-800 px-2 py-1 text-red-400 font-semibold">
+            Asks
+          </div>
+          <table className="w-full">
+            <thead className="sticky top-7 bg-gray-900/95">
+              <tr className="text-gray-500 border-b border-gray-800">
+                <th className="text-right py-1 px-2">Price</th>
+                <th className="text-right py-1 px-2">#</th>
+                <th className="text-right py-1 px-2">Qty</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {book.asks.map((lvl, i) => (
+                <tr key={`a${i}`} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                  <td className="text-right py-0.5 px-2 text-red-400">{formatPrice(lvl.price)}</td>
+                  <td className="text-right py-0.5 px-2 text-gray-500">{lvl.order_count}</td>
+                  <td className="text-right py-0.5 px-2 text-red-400">{formatQty(lvl.quantity)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

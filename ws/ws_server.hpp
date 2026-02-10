@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <atomic>
+#include <functional>
 
 namespace quantumflow {
 
@@ -11,6 +12,8 @@ namespace quantumflow {
 /// via uWS::Loop::defer().
 class WsServer {
 public:
+    using MessageHandler = std::function<void(const std::string&)>;
+
     WsServer();
     ~WsServer();
 
@@ -25,6 +28,7 @@ public:
 
     /// Thread-safe broadcast: defers a text message send to the event loop thread.
     void broadcast(const std::string& message);
+    void set_message_handler(MessageHandler handler);
 
     /// Graceful shutdown: close all connections, stop listening, join thread.
     void shutdown();

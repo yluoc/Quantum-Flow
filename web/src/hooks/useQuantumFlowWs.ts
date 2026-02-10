@@ -17,6 +17,7 @@ export interface QuantumFlowState {
   latency: LatencyData | null;
   latencyHistory: LatencyData[];
   strategies: StrategySignalData[];
+  setSymbols: (symbols: string[]) => void;
 }
 
 const RECONNECT_DELAY_MS = 2000;
@@ -32,6 +33,21 @@ export function useQuantumFlowWs(url: string): QuantumFlowState {
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const setSymbols = useCallback((symbols: string[]) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const next = Array.from(
+      new Set(symbols.map(s => s.trim()).filter(Boolean))
+    );
+    if (next.length === 0) return;
+
+    ws.send(JSON.stringify({
+      type: 'set_symbols',
+      symbols: next,
+    }));
+  }, []);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -102,5 +118,14 @@ export function useQuantumFlowWs(url: string): QuantumFlowState {
     };
   }, [connect]);
 
-  return { connected, symbols, booksBySymbol, tradesBySymbol, latency, latencyHistory, strategies };
+  return {
+    connected,
+    symbols,
+    booksBySymbol,
+    tradesBySymbol,
+    latency,
+    latencyHistory,
+    strategies,
+    setSymbols,
+  };
 }

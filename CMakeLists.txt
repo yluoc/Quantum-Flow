@@ -100,23 +100,6 @@ target_include_directories(orderbook_lib PUBLIC
 target_compile_options(orderbook_lib PRIVATE ${OPT_FLAGS})
 
 # ═══════════════════════════════════════════════
-# GRAPHICS ENGINE LIBRARY (from HP_Graphics_Engine)
-# ═══════════════════════════════════════════════
-add_library(graphics_lib STATIC
-    graphics/src/simd_math.cpp
-    graphics/src/pipeline.cpp
-    graphics/src/vertex_manager.cpp
-    graphics/src/profiler.cpp
-)
-
-target_include_directories(graphics_lib PUBLIC
-    ${QF_ROOT}/graphics/include
-)
-
-target_compile_options(graphics_lib PRIVATE ${SIMD_FLAGS} ${OPT_FLAGS})
-target_link_libraries(graphics_lib PUBLIC pthread)
-
-# ═══════════════════════════════════════════════
 # STRATEGIES LIBRARY
 # ═══════════════════════════════════════════════
 add_library(strategies_lib STATIC
@@ -128,7 +111,7 @@ target_include_directories(strategies_lib PUBLIC
     ${QF_ROOT}
 )
 
-target_link_libraries(strategies_lib PUBLIC orderbook_lib graphics_lib)
+target_link_libraries(strategies_lib PUBLIC orderbook_lib)
 target_compile_options(strategies_lib PRIVATE ${OPT_FLAGS})
 
 # ═══════════════════════════════════════════════
@@ -155,34 +138,31 @@ endif()
 if(QUANTUMFLOW_BUILD_WEBUI)
     add_executable(quantumflow main.cpp)
 
-    target_include_directories(quantumflow PRIVATE ${QF_ROOT})
+    target_include_directories(quantumflow PRIVATE ${QF_ROOT} ${QF_ROOT}/graphics/include)
     target_link_libraries(quantumflow PRIVATE
         strategies_lib
         orderbook_lib
-        graphics_lib
         ws_server_lib
     )
     target_compile_options(quantumflow PRIVATE ${OPT_FLAGS})
 else()
     add_executable(quantumflow main.cpp)
-    target_include_directories(quantumflow PRIVATE ${QF_ROOT})
+    target_include_directories(quantumflow PRIVATE ${QF_ROOT} ${QF_ROOT}/graphics/include)
     target_compile_definitions(quantumflow PRIVATE QUANTUMFLOW_HEADLESS)
     target_link_libraries(quantumflow PRIVATE
         strategies_lib
         orderbook_lib
-        graphics_lib
     )
     target_compile_options(quantumflow PRIVATE ${OPT_FLAGS})
 endif()
 
 # Headless-only build (no WebUI dependency)
 add_executable(quantumflow_headless main.cpp)
-target_include_directories(quantumflow_headless PRIVATE ${QF_ROOT})
+target_include_directories(quantumflow_headless PRIVATE ${QF_ROOT} ${QF_ROOT}/graphics/include)
 target_compile_definitions(quantumflow_headless PRIVATE QUANTUMFLOW_HEADLESS)
 target_link_libraries(quantumflow_headless PRIVATE
     strategies_lib
     orderbook_lib
-    graphics_lib
 )
 target_compile_options(quantumflow_headless PRIVATE ${OPT_FLAGS})
 
@@ -194,10 +174,9 @@ if(QUANTUMFLOW_BUILD_BRIDGE)
         bridge/quantumflow_bridge.cpp
     )
 
-    target_include_directories(quantumflow_bridge PRIVATE ${QF_ROOT})
+    target_include_directories(quantumflow_bridge PRIVATE ${QF_ROOT} ${QF_ROOT}/graphics/include)
     target_link_libraries(quantumflow_bridge PRIVATE
         orderbook_lib
-        graphics_lib
     )
     target_compile_options(quantumflow_bridge PRIVATE ${OPT_FLAGS})
 endif()
@@ -216,15 +195,6 @@ if(QUANTUMFLOW_BUILD_TESTS)
     target_link_libraries(LOBTest PRIVATE orderbook_lib GTest::gtest GTest::gtest_main)
     add_test(NAME LOBTest COMMAND LOBTest)
 
-    # Graphics engine test (original)
-    add_executable(test_engine
-        graphics/tests/test_engine.cpp
-    )
-    target_include_directories(test_engine PRIVATE ${QF_ROOT}/graphics/include)
-    target_compile_options(test_engine PRIVATE ${SIMD_FLAGS} ${OPT_FLAGS})
-    target_link_libraries(test_engine PRIVATE graphics_lib pthread)
-    add_test(NAME EngineTests COMMAND test_engine)
-
     # Price converter test
     add_executable(test_price_converter
         tests/test_price_converter.cpp
@@ -238,7 +208,7 @@ if(QUANTUMFLOW_BUILD_TESTS)
         tests/test_shared_memory.cpp
     )
     target_include_directories(test_shared_memory PRIVATE ${QF_ROOT} ${QF_ROOT}/graphics/include)
-    target_link_libraries(test_shared_memory PRIVATE graphics_lib GTest::gtest GTest::gtest_main pthread)
+    target_link_libraries(test_shared_memory PRIVATE GTest::gtest GTest::gtest_main pthread)
     add_test(NAME SharedMemoryTest COMMAND test_shared_memory)
 
     # Strategies test
@@ -262,13 +232,6 @@ if(QUANTUMFLOW_BUILD_BENCHMARKS)
     target_link_libraries(LOBBench PRIVATE orderbook_lib)
     target_compile_options(LOBBench PRIVATE ${OPT_FLAGS})
 
-    # Graphics benchmark
-    add_executable(graphics_benchmark
-        graphics/tests/benchmark.cpp
-    )
-    target_include_directories(graphics_benchmark PRIVATE ${QF_ROOT}/graphics/include)
-    target_compile_options(graphics_benchmark PRIVATE ${SIMD_FLAGS} ${OPT_FLAGS})
-    target_link_libraries(graphics_benchmark PRIVATE graphics_lib pthread)
 endif()
 
 # ─────────────────────────────────────────────

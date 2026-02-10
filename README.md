@@ -8,6 +8,14 @@ Low-latency trading engine with a Python market-data pipeline and a live web UI.
 - Bridge ingress from Python to C++ (Unix socket IPC + in-process fallback)
 - Optional WebSocket server + dashboard
 
+## Prerequisites
+- CMake 3.16+
+- C++20 compiler (GCC/Clang)
+- Python 3.10+ (for the market-data pipeline)
+- Node.js 18+ (optional, for local web dashboard development)
+
+Linux/macOS is recommended because the engine/pipeline bridge uses Unix-domain sockets.
+
 ## Dashboard Preview
 <p align="center">
   <img src="./screenshot/update.png" alt="QuantumFlow dashboard screenshot" width="1100" />
@@ -15,28 +23,68 @@ Low-latency trading engine with a Python market-data pipeline and a live web UI.
   <em>Live UI: Order Book, Trade Flow, Latency Metrics, and Strategy Signals.</em>
 </p>
 
-## Quick Start
-1. Build the C++ engine:
+## Quick Start (3 terminals)
+1. Build:
    ```bash
    cmake -S . -B build
    cmake --build build
    ```
-2. Install the Python pipeline deps:
+2. Terminal A: start the engine (WebUI mode):
    ```bash
-   python -m pip install -r pipeline/requirements.txt
+   ./build/quantumflow \
+     --symbols BTC-USDT-SWAP,ETH-USDT-SWAP \
+     --ws-port 9001 \
+     --bridge-socket /tmp/quantumflow_bridge.sock \
+     --pipeline-control-socket /tmp/quantumflow_pipeline_ctrl.sock
    ```
-3. Run the engine (defaults to WebUI mode):
+3. Terminal B: start the Python pipeline and push into the C++ engine:
    ```bash
-   ./build/quantumflow --symbols BTC-USDT-SWAP,ETH-USDT-SWAP
-   ```
-4. Run the Python pipeline (in another terminal):
-   ```bash
+   python3 -m pip install -r pipeline/requirements.txt
    cd pipeline
-   PYTHONPATH=. python -m src.app \
+   PYTHONPATH=. python3 -m src.app \
      --symbols BTC-USDT-SWAP,ETH-USDT-SWAP \
      --channels books5,trades \
-     --cpp-bridge
+     --cpp-bridge \
+     --bridge-socket /tmp/quantumflow_bridge.sock \
+     --control-socket /tmp/quantumflow_pipeline_ctrl.sock
    ```
+4. Terminal C (optional): run the React dashboard:
+   ```bash
+   cd web
+   npm install
+   npm run dev
+   ```
+   Then open `http://localhost:5173` (the app connects to `ws://localhost:9001`).
+
+## How To Use The Engine
+### 1) Run in live mode (recommended)
+- Start `quantumflow` first.
+- Start the Python pipeline with `--cpp-bridge`.
+- View metrics/order book/trades in the web app.
+- Use the symbol selector in the UI to request runtime symbol changes (sent through the control socket).
+
+### 2) Run headless (no WebSocket UI)
+```bash
+./build/quantumflow --headless --symbols BTC-USDT-SWAP,ETH-USDT-SWAP
+```
+This keeps the strategy/LOB engine running without the WebSocket broadcast/UI loop.
+
+### 3) Use the Makefile shortcuts
+```bash
+make build          # Configure + build C++ engine
+make run-engine     # Run engine (WebUI mode + bridge sockets)
+make pipeline-run   # Create venv, install deps, run pipeline with --cpp-bridge
+make web            # Start web dashboard dev server
+make test           # Run C++ tests
+make headless       # Build headless configuration
+```
+
+### Engine CLI flags
+- `--symbols BTC-USDT-SWAP,ETH-USDT-SWAP` comma-separated instruments
+- `--headless` disable WebUI broadcasting
+- `--ws-port 9001` WebSocket server port for UI clients
+- `--bridge-socket /tmp/quantumflow_bridge.sock` Python->C++ ingress socket
+- `--pipeline-control-socket /tmp/quantumflow_pipeline_ctrl.sock` runtime symbol control socket
 
 ## Project Layout
 ```text
@@ -57,6 +105,3 @@ quantumflow/
 │   └── include/memory/allocator.h  # Shared allocator utilities
 └── screenshot/              # README/UI assets
 ```
-
-## Notes
-Pass `--headless` to run without the WebUI, and `--symbols` to set instruments.

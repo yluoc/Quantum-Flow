@@ -72,6 +72,8 @@ This keeps the strategy/LOB engine running without the WebSocket broadcast/UI lo
 ### 3) Use the Makefile shortcuts
 ```bash
 make build          # Configure + build C++ engine
+make configure-bridge # Configure with bridge ON (updates compile_commands for bridge C file)
+make build-bridge   # Build with bridge ON
 make run-engine     # Run engine (WebUI mode + bridge sockets)
 make pipeline-run   # Create venv, install deps, run pipeline with --cpp-bridge
 make web            # Start web dashboard dev server
@@ -85,6 +87,21 @@ make headless       # Build headless configuration
 - `--ws-port 9001` WebSocket server port for UI clients
 - `--bridge-socket /tmp/quantumflow_bridge.sock` Python->C++ ingress socket
 - `--pipeline-control-socket /tmp/quantumflow_pipeline_ctrl.sock` runtime symbol control socket
+
+## IDE / IntelliSense (`compile_commands.json`)
+For C/C++ editor diagnostics (for example in VS Code), this repo uses
+`compile_commands.json` at the project root (symlink to `build/compile_commands.json`).
+
+If you see include-path squiggles, regenerate it by reconfiguring:
+```bash
+make configure
+```
+
+If you need IntelliSense for the bridge C API translation unit
+(`bridge/quantumflow_uds_bridge_capi.c`), configure with bridge enabled:
+```bash
+make configure-bridge
+```
 
 ## Project Layout
 ```text

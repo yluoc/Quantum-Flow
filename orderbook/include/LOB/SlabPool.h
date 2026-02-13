@@ -6,6 +6,7 @@
 #include <vector>
 #include <cassert>
 #include <new>
+#include <memory>
 #include "Macros.h"
 
 #ifdef __linux__
@@ -81,7 +82,7 @@ private:
         Slab& operator=(const Slab&) = delete;
     };
 
-    std::vector<Slab*> slabs_;
+    std::vector<std::unique_ptr<Slab>> slabs_;
     FreeNode* free_list_;
     size_t total_capacity_;
     size_t allocated_count_;
@@ -97,11 +98,11 @@ private:
 #ifndef NDEBUG
     Slab* find_slab(T* obj) {
         char* obj_ptr = reinterpret_cast<char*>(obj);
-        for (auto* slab : slabs_) {
+        for (const auto& slab : slabs_) {
             char* slab_start = slab->storage;
             char* slab_end = slab->storage + SLAB_BYTES;
             if (obj_ptr >= slab_start && obj_ptr < slab_end) {
-                return slab;
+                return slab.get();
             }
         }
         return nullptr;
@@ -120,7 +121,7 @@ public:
     }
 
     ~SlabPool() {
-        for (auto* slab : slabs_) {
+        for (const auto& slab : slabs_) {
             for (size_t i = 0; i < SLAB_SZ; ++i) {
                 T* obj = reinterpret_cast<T*>(slab->storage + i * OBJECT_SIZE);
                 bool in_free_list = false;
@@ -134,7 +135,6 @@ public:
                     obj->~T();
                 }
             }
-            delete slab;
         }
     }
 
@@ -142,12 +142,13 @@ public:
     SlabPool& operator=(const SlabPool&) = delete;
 
     void add_slab() {
-        Slab* slab = new Slab();
-        slabs_.push_back(slab);
+        auto slab = std::make_unique<Slab>();
+        Slab* slab_ptr = slab.get();
+        slabs_.push_back(std::move(slab));
         total_capacity_ += SLAB_SZ;
 
         for (size_t i = 0; i < SLAB_SZ; ++i) {
-            FreeNode* node = reinterpret_cast<FreeNode*>(slab->storage + i * OBJECT_SIZE);
+            FreeNode* node = reinterpret_cast<FreeNode*>(slab_ptr->storage + i * OBJECT_SIZE);
             node->next = free_list_;
             free_list_ = node;
         }

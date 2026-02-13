@@ -1,4 +1,5 @@
 BUILD_DIR  := build
+SAN_BUILD_DIR := build-sanitize
 JOBS       := $(shell nproc)
 WS_PORT    := 9001
 SYMBOLS    := BTC-USDT-SWAP,ETH-USDT-SWAP
@@ -9,7 +10,7 @@ PIPELINE_CTRL_SOCK := /tmp/quantumflow_pipeline_ctrl.sock
 PYTHON     := python3
 PIPELINE_VENV := pipeline/.venv
 
-.PHONY: all configure configure-bridge build build-bridge run run-engine pipeline-venv pipeline-install pipeline-run web test clean headless
+.PHONY: all configure configure-bridge configure-sanitize build build-bridge build-sanitize run run-engine pipeline-venv pipeline-install pipeline-run web test test-sanitize clean headless
 
 ## Default: build everything
 all: build web-install
@@ -23,6 +24,11 @@ configure:
 configure-bridge:
 	$(MAKE) configure BUILD_BRIDGE=ON
 
+## Configure sanitizer build (Debug + ASan/UBSan)
+configure-sanitize:
+	@mkdir -p $(SAN_BUILD_DIR)
+	cd $(SAN_BUILD_DIR) && cmake -DCMAKE_BUILD_TYPE=Debug -DQUANTUMFLOW_ENABLE_SANITIZERS=ON -DQUANTUMFLOW_BUILD_WEBUI=ON -DQUANTUMFLOW_BUILD_BRIDGE=$(BUILD_BRIDGE) ..
+
 ## Build C++ engine
 build: configure
 	cd $(BUILD_DIR) && make -j$(JOBS)
@@ -30,6 +36,10 @@ build: configure
 ## Build with Python bridge ON (includes bridge TU in compile_commands.json)
 build-bridge:
 	$(MAKE) build BUILD_BRIDGE=ON
+
+## Build sanitizer configuration
+build-sanitize: configure-sanitize
+	cd $(SAN_BUILD_DIR) && make -j$(JOBS)
 
 ## Run C++ engine
 run: run-engine
@@ -64,6 +74,10 @@ web-build:
 ## Run all C++ tests
 test: build
 	cd $(BUILD_DIR) && ctest --output-on-failure
+
+## Run tests under ASan/UBSan
+test-sanitize: build-sanitize
+	cd $(SAN_BUILD_DIR) && ctest --output-on-failure
 
 ## Build headless-only (no WebSocket server)
 headless:

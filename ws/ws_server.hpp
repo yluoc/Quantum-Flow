@@ -4,6 +4,7 @@
 #include <string>
 #include <atomic>
 #include <functional>
+#include <memory>
 
 namespace quantumflow {
 
@@ -38,7 +39,7 @@ public:
 
 private:
     struct Impl;
-    Impl* impl_;
+    std::unique_ptr<Impl> impl_;
 };
 
 } // namespace quantumflow

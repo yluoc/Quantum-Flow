@@ -10,6 +10,7 @@
 #include <type_traits>
 #include <stdexcept>
 #include <new>
+#include <memory>
 
 namespace engine {
 namespace memory {
@@ -271,7 +272,7 @@ class SlabAllocator {
         }
     };
 
-    std::array<Slab*, NUM_SIZE_CLASSES> m_slabs;
+    std::array<std::unique_ptr<Slab>, NUM_SIZE_CLASSES> m_slabs;
 
     static size_t getSizeClass(size_t size) {
         for (size_t i = 0; i < NUM_SIZE_CLASSES; ++i) {
@@ -283,13 +284,7 @@ class SlabAllocator {
 public:
     SlabAllocator() {
         for (size_t i = 0; i < NUM_SIZE_CLASSES; ++i) {
-            m_slabs[i] = new Slab(SIZE_CLASSES[i]);
-        }
-    }
-
-    ~SlabAllocator() {
-        for (auto* slab : m_slabs) {
-            delete slab;
+            m_slabs[i] = std::make_unique<Slab>(SIZE_CLASSES[i]);
         }
     }
 

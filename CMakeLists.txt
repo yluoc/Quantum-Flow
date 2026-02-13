@@ -73,6 +73,21 @@ option(QUANTUMFLOW_BUILD_WEBUI "Build with WebSocket UI support" ON)
 option(QUANTUMFLOW_BUILD_BRIDGE "Build Python bridge module (C-API)" ON)
 option(QUANTUMFLOW_BUILD_TESTS "Build test targets" ON)
 option(QUANTUMFLOW_BUILD_BENCHMARKS "Build benchmark targets" ON)
+option(QUANTUMFLOW_ENABLE_SANITIZERS "Enable Address/Undefined sanitizers (GCC/Clang)" OFF)
+
+if(QUANTUMFLOW_ENABLE_SANITIZERS)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(
+            -fsanitize=address,undefined
+            -fno-omit-frame-pointer
+            -fno-sanitize-recover=all
+        )
+        add_link_options(-fsanitize=address,undefined)
+        message(STATUS "Sanitizers: enabled (address, undefined)")
+    else()
+        message(WARNING "QUANTUMFLOW_ENABLE_SANITIZERS is ON, but compiler is not GCC/Clang; ignoring")
+    endif()
+endif()
 
 # ─────────────────────────────────────────────
 # Third-party dependencies

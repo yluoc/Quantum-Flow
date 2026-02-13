@@ -8,13 +8,14 @@
 #include <mutex>
 #include <condition_variable>
 #include <cstdio>
+#include <memory>
 
 namespace quantumflow {
 
 struct WsServer::Impl {
     struct PerSocketData {};
 
-    uWS::App* app = nullptr;
+    std::unique_ptr<uWS::App> app;
     uWS::Loop* loop = nullptr;
     us_listen_socket_t* listen_socket = nullptr;
     std::vector<uWS::WebSocket<false, true, PerSocketData>*> clients;
@@ -31,18 +32,28 @@ struct WsServer::Impl {
     bool init_ok = false;
 };
 
-WsServer::WsServer() : impl_(new Impl) {}
+WsServer::WsServer() : impl_(std::make_unique<Impl>()) {}
 
 WsServer::~WsServer() {
     shutdown();
-    delete impl_;
 }
 
 bool WsServer::init(int port) {
+    if (impl_->running.load(std::memory_order_relaxed) || impl_->event_thread.joinable()) {
+        std::fprintf(stderr, "[WsServer] init() called while server thread is active\n");
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(impl_->init_mutex);
+        impl_->init_done = false;
+        impl_->init_ok = false;
+    }
+
     impl_->event_thread = std::thread([this, port]() {
         impl_->loop = uWS::Loop::get();
 
-        impl_->app = new uWS::App();
+        impl_->app = std::make_unique<uWS::App>();
 
         impl_->app->ws<Impl::PerSocketData>("/*", {
             .compression = uWS::DISABLED,
@@ -98,9 +109,7 @@ bool WsServer::init(int port) {
         });
 
         impl_->app->run();
-
-        delete impl_->app;
-        impl_->app = nullptr;
+        impl_->app.reset();
     });
 
     {
@@ -130,10 +139,11 @@ void WsServer::set_message_handler(MessageHandler handler) {
 }
 
 void WsServer::shutdown() {
-    if (!impl_->running.load()) return;
-    impl_->running.store(false);
+    const bool was_running = impl_->running.exchange(false, std::memory_order_relaxed);
+    const bool has_thread = impl_->event_thread.joinable();
+    if (!was_running && !has_thread) return;
 
-    if (impl_->loop) {
+    if (was_running && impl_->loop) {
         impl_->loop->defer([this]() {
             for (auto* ws : impl_->clients) {
                 ws->close();
@@ -148,9 +158,13 @@ void WsServer::shutdown() {
         });
     }
 
-    if (impl_->event_thread.joinable()) {
+    if (has_thread) {
         impl_->event_thread.join();
     }
+
+    impl_->loop = nullptr;
+    impl_->listen_socket = nullptr;
+    impl_->app.reset();
 
     std::printf("[WsServer] Shutdown complete\n");
 }

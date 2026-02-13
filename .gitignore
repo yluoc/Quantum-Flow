@@ -6,3 +6,4 @@ session.txt
 compile_commands.json
 *.pyc
 .venv
+build-sanitize

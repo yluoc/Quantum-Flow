@@ -5,33 +5,33 @@
 #include "LOB/Level.h"
 
 // Order Tests
-TEST(order_test, fill_order_beyond_volume) {
+TEST(OrderTest, FillOrderBeyondVolume) {
 	Order order(1, 1, BUY, 100, 50, 50, ACTIVE);
 	order.fill(30);
 	EXPECT_EQ(order.get_remaining_volume(), 20);
 }
 
-TEST(order_test, order_status_after_partial_fill) {
+TEST(OrderTest, OrderStatusAfterPartialFill) {
 	Order order(1, 1, BUY, 100, 50, 50, ACTIVE);
 	order.fill(20);
 	EXPECT_EQ(order.get_order_status(), ACTIVE);
 	EXPECT_EQ(order.get_remaining_volume(), 30);
 }
 
-TEST(order_test, order_status_after_full_fill) {
+TEST(OrderTest, OrderStatusAfterFullFill) {
 	Order order(1, 1, BUY, 100, 50, 50, ACTIVE);
 	order.fill(50);
 	EXPECT_EQ(order.get_order_status(), FULFILLED);
 	EXPECT_EQ(order.get_remaining_volume(), 0);
 }
 
-TEST(order_test, set_order_status) {
+TEST(OrderTest, SetOrderStatus) {
 	Order order(1, 1, BUY, 100, 50, 50, ACTIVE);
 	order.set_order_status(DELETED);
 	EXPECT_EQ(order.get_order_status(), DELETED);
 }
 
-TEST(order_test, order_initial_state) {
+TEST(OrderTest, OrderInitialState) {
 	Order order(1, 1, BUY, 100, 50, 50, ACTIVE);
 	EXPECT_EQ(order.get_order_id(), 1);
 	EXPECT_EQ(order.get_agent_id(), 1);
@@ -42,7 +42,7 @@ TEST(order_test, order_initial_state) {
 }
 
 // Level Tests
-TEST(level_test, insert_multiple_orders) {
+TEST(LevelTest, InsertMultipleOrders) {
 	Level level(100);
 	
 	Order order1(1, 1, BUY, 100, 50, 50, ACTIVE);
@@ -57,7 +57,7 @@ TEST(level_test, insert_multiple_orders) {
 	EXPECT_EQ(level.get_total_volume(), 100);
 }
 
-TEST(level_test, delete_order_from_level) {
+TEST(LevelTest, DeleteOrderFromLevel) {
 	Level level(100);
 	
 	Order order1(1, 1, BUY, 100, 50, 50, ACTIVE);
@@ -74,7 +74,7 @@ TEST(level_test, delete_order_from_level) {
 	EXPECT_EQ(level.get_total_volume(), 70);
 }
 
-TEST(level_test, match_order_partial_fill) {
+TEST(LevelTest, MatchOrderPartialFill) {
 	Level level(100);
 	
 	Order buy_order(1, 1, BUY, 100, 50, 50, ACTIVE);
@@ -102,7 +102,7 @@ TEST(level_test, match_order_partial_fill) {
 }
 
 // Book Tests
-TEST(book_test, place_buy_order_no_match) {
+TEST(BookTest, PlaceBuyOrderNoMatch) {
 	Book book;
 	const Trades& trades = book.place_order(1, 1, BUY, 100, 50);
 	
@@ -111,7 +111,7 @@ TEST(book_test, place_buy_order_no_match) {
 	EXPECT_EQ(book.get_best_buy(), 100);
 }
 
-TEST(book_test, place_sell_order_no_match) {
+TEST(BookTest, PlaceSellOrderNoMatch) {
 	Book book;
 	const Trades& trades = book.place_order(1, 1, SELL, 100, 50);
 	
@@ -120,7 +120,7 @@ TEST(book_test, place_sell_order_no_match) {
 	EXPECT_EQ(book.get_best_sell(), 100);
 }
 
-TEST(book_test, place_buy_order_with_match) {
+TEST(BookTest, PlaceBuyOrderWithMatch) {
 	Book book;
 	book.place_order(1, 1, SELL, 100, 30);
 	
@@ -133,7 +133,7 @@ TEST(book_test, place_buy_order_with_match) {
 	EXPECT_EQ(book.get_buy_levels_count(), 1);
 }
 
-TEST(book_test, place_sell_order_with_match) {
+TEST(BookTest, PlaceSellOrderWithMatch) {
 	Book book;
 	book.place_order(1, 1, BUY, 100, 30);
 	
@@ -146,7 +146,7 @@ TEST(book_test, place_sell_order_with_match) {
 	EXPECT_EQ(book.get_sell_levels_count(), 1);
 }
 
-TEST(book_test, multiple_orders_same_price) {
+TEST(BookTest, MultipleOrdersSamePrice) {
 	Book book;
 	book.place_order(1, 1, BUY, 100, 30);
 	book.place_order(2, 1, BUY, 100, 20);
@@ -161,7 +161,7 @@ TEST(book_test, multiple_orders_same_price) {
 	EXPECT_EQ(book.get_sell_levels_count(), 0);
 }
 
-TEST(book_test, delete_order) {
+TEST(BookTest, DeleteOrder) {
 	Book book;
 	book.place_order(1, 1, BUY, 100, 30);
 	
@@ -170,7 +170,7 @@ TEST(book_test, delete_order) {
 	EXPECT_EQ(book.get_buy_levels_count(), 0);
 }
 
-TEST(book_test, delete_order_not_in_book) {
+TEST(BookTest, DeleteOrderNotInBook) {
 	Book book;
 	book.place_order(1, 1, BUY, 100, 30);
 	
@@ -179,7 +179,7 @@ TEST(book_test, delete_order_not_in_book) {
 	EXPECT_EQ(book.get_buy_levels_count(), 1);
 }
 
-TEST(book_test, place_order_with_invalid_price) {
+TEST(BookTest, PlaceOrderWithInvalidPrice) {
 	Book book;
 	const Trades& trades = book.place_order(1, 1, BUY, 0, 30);
 	
@@ -187,7 +187,7 @@ TEST(book_test, place_order_with_invalid_price) {
 	EXPECT_EQ(book.get_buy_levels_count(), 0);
 }
 
-TEST(book_test, fifo_at_same_price) {
+TEST(BookTest, FifoAtSamePrice) {
     Book book;
     
     book.place_order(1, 1, BUY, 100, 10);
@@ -205,7 +205,7 @@ TEST(book_test, fifo_at_same_price) {
     EXPECT_EQ(trades[2].get_trade_volume(), 30);
 }
 
-TEST(book_test, partial_fill_multiple_orders) {
+TEST(BookTest, PartialFillMultipleOrders) {
     Book book;
     
     book.place_order(1, 1, BUY, 100, 10);
@@ -221,7 +221,7 @@ TEST(book_test, partial_fill_multiple_orders) {
     EXPECT_EQ(book.get_order_status(1), DELETED);
 }
 
-TEST(book_test, cancel_resting_order) {
+TEST(BookTest, CancelRestingOrder) {
     Book book;
     
     book.place_order(1, 1, BUY, 100, 10);
@@ -239,7 +239,7 @@ TEST(book_test, cancel_resting_order) {
     EXPECT_EQ(trades[0].get_matched_order(), 2);
 }
 
-TEST(book_test, cancel_nonexistent_order) {
+TEST(BookTest, CancelNonexistentOrder) {
     Book book;
     
     book.place_order(1, 1, BUY, 100, 10);
@@ -249,7 +249,7 @@ TEST(book_test, cancel_nonexistent_order) {
     EXPECT_EQ(book.get_buy_levels_count(), 1);
 }
 
-TEST(book_test, best_bid_ask_invariants) {
+TEST(BookTest, BestBidAskInvariants) {
     Book book;
     
     EXPECT_EQ(book.get_best_buy(), 0);
@@ -266,7 +266,7 @@ TEST(book_test, best_bid_ask_invariants) {
     EXPECT_EQ(book.get_best_sell(), 115);
 }
 
-TEST(book_test, best_bid_ask_updates_after_fill) {
+TEST(BookTest, BestBidAskUpdatesAfterFill) {
     Book book;
     
     book.place_order(1, 1, BUY, 100, 10);
@@ -279,7 +279,7 @@ TEST(book_test, best_bid_ask_updates_after_fill) {
     EXPECT_EQ(book.get_best_buy(), 100);
 }
 
-TEST(book_test, best_bid_ask_updates_after_cancel) {
+TEST(BookTest, BestBidAskUpdatesAfterCancel) {
     Book book;
     
     book.place_order(1, 1, BUY, 100, 10);
@@ -292,7 +292,7 @@ TEST(book_test, best_bid_ask_updates_after_cancel) {
     EXPECT_EQ(book.get_best_buy(), 100);
 }
 
-TEST(book_test, spread_calculation) {
+TEST(BookTest, SpreadCalculation) {
     Book book;
     
     book.place_order(1, 1, BUY, 100, 10);
@@ -301,7 +301,7 @@ TEST(book_test, spread_calculation) {
     EXPECT_EQ(book.get_spread(), 10);
 }
 
-TEST(book_test, mid_price_calculation) {
+TEST(BookTest, MidPriceCalculation) {
     Book book;
     
     book.place_order(1, 1, BUY, 100, 10);
@@ -310,7 +310,7 @@ TEST(book_test, mid_price_calculation) {
     EXPECT_DOUBLE_EQ(book.get_mid_price(), 105.0);
 }
 
-TEST(book_test, empty_book_after_all_filled) {
+TEST(BookTest, EmptyBookAfterAllFilled) {
     Book book;
     
     book.place_order(1, 1, BUY, 100, 10);
@@ -320,7 +320,7 @@ TEST(book_test, empty_book_after_all_filled) {
     EXPECT_EQ(book.get_best_buy(), 0);
 }
 
-TEST(book_test, cancel_after_partial_fill) {
+TEST(BookTest, CancelAfterPartialFill) {
     Book book;
     
     book.place_order(1, 1, BUY, 100, 100);
@@ -337,7 +337,7 @@ TEST(book_test, cancel_after_partial_fill) {
     EXPECT_EQ(book.get_best_buy(), 0);
 }
 
-TEST(book_test, fulfilled_orders_removed_from_index) {
+TEST(BookTest, FulfilledOrdersRemovedFromIndex) {
     Book book;
     
     book.place_order(1, 1, BUY, 100, 10);
@@ -352,7 +352,7 @@ TEST(book_test, fulfilled_orders_removed_from_index) {
     EXPECT_EQ(book.get_order_status(2), ACTIVE);
 }
 
-TEST(book_test, pool_reuse_no_memory_growth) {
+TEST(BookTest, PoolReuseNoMemoryGrowth) {
     Book book(1000);
     
     for (int cycle = 0; cycle < 10; ++cycle) {

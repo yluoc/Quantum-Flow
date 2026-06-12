@@ -3,19 +3,40 @@ include(FetchContent)
 set(QF_THIRD_PARTY_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
 # ─────────────────────────────────────────────
-# uWebSockets + uSockets + nlohmann/json
+# nlohmann/json (header-only) — used by WebUI and the C++ pipeline,
+# so it is fetched unconditionally.
 # ─────────────────────────────────────────────
-if(QUANTUMFLOW_BUILD_WEBUI)
-    # nlohmann/json (header-only)
+FetchContent_Declare(
+    nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG        v3.11.3
+    GIT_SHALLOW    TRUE
+)
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+FetchContent_MakeAvailable(nlohmann_json)
+
+# ─────────────────────────────────────────────
+# IXWebSocket — TLS WebSocket *client* for the C++ market-data pipeline.
+# ─────────────────────────────────────────────
+if(QUANTUMFLOW_BUILD_PIPELINE)
+    find_package(OpenSSL REQUIRED)
+    find_package(ZLIB REQUIRED)
+    set(USE_TLS ON CACHE INTERNAL "")
+    set(USE_OPEN_SSL ON CACHE INTERNAL "")
+    set(IXWEBSOCKET_INSTALL OFF CACHE INTERNAL "")
     FetchContent_Declare(
-        nlohmann_json
-        GIT_REPOSITORY https://github.com/nlohmann/json.git
-        GIT_TAG        v3.11.3
+        ixwebsocket
+        GIT_REPOSITORY https://github.com/machinezone/IXWebSocket.git
+        GIT_TAG        v11.4.5
         GIT_SHALLOW    TRUE
     )
-    set(JSON_BuildTests OFF CACHE INTERNAL "")
-    FetchContent_MakeAvailable(nlohmann_json)
+    FetchContent_MakeAvailable(ixwebsocket)
+endif()
 
+# ─────────────────────────────────────────────
+# uWebSockets + uSockets
+# ─────────────────────────────────────────────
+if(QUANTUMFLOW_BUILD_WEBUI)
     FetchContent_Declare(
         usockets
         GIT_REPOSITORY https://github.com/uNetworking/uSockets.git

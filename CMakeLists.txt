@@ -70,7 +70,7 @@ endif()
 # Options
 # ─────────────────────────────────────────────
 option(QUANTUMFLOW_BUILD_WEBUI "Build with WebSocket UI support" ON)
-option(QUANTUMFLOW_BUILD_BRIDGE "Build Python bridge module (C-API)" ON)
+option(QUANTUMFLOW_BUILD_PIPELINE "Build C++ market-data pipeline" ON)
 option(QUANTUMFLOW_BUILD_TESTS "Build test targets" ON)
 option(QUANTUMFLOW_BUILD_BENCHMARKS "Build benchmark targets" ON)
 option(QUANTUMFLOW_ENABLE_SANITIZERS "Enable Address/Undefined sanitizers (GCC/Clang)" OFF)
@@ -182,17 +182,34 @@ target_link_libraries(quantumflow_headless PRIVATE
 target_compile_options(quantumflow_headless PRIVATE ${OPT_FLAGS})
 
 # ═══════════════════════════════════════════════
-# PYTHON BRIDGE MODULE (C-API)
+# C++ MARKET-DATA PIPELINE (replaces the former Python pipeline)
 # ═══════════════════════════════════════════════
-if(QUANTUMFLOW_BUILD_BRIDGE)
-    find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
-    Python3_add_library(quantumflow_uds_bridge MODULE
-        bridge/quantumflow_uds_bridge_capi.c
+if(QUANTUMFLOW_BUILD_PIPELINE)
+    find_package(OpenSSL REQUIRED)
+    find_package(ZLIB REQUIRED)
+    add_executable(quantumflow_pipeline
+        pipeline/src/main.cpp
+        pipeline/src/normalizer.cpp
+        pipeline/src/okx_ws.cpp
+        pipeline/src/control_socket.cpp
+        pipeline/src/sinks/stdout_sink.cpp
+        pipeline/src/sinks/jsonl_sink.cpp
+        pipeline/src/sinks/bridge_sink.cpp
+        pipeline/src/metrics/rolling_metrics.cpp
     )
-    set_target_properties(quantumflow_uds_bridge PROPERTIES PREFIX "")
-    target_link_libraries(quantumflow_uds_bridge PRIVATE Python3::Module)
-    target_compile_options(quantumflow_uds_bridge PRIVATE ${OPT_FLAGS})
-    message(STATUS "Bridge build: using C-API quantumflow_uds_bridge module")
+    target_include_directories(quantumflow_pipeline PRIVATE
+        ${QF_ROOT}
+        ${QF_ROOT}/pipeline/src
+    )
+    target_link_libraries(quantumflow_pipeline PRIVATE
+        ixwebsocket
+        nlohmann_json::nlohmann_json
+        OpenSSL::SSL
+        OpenSSL::Crypto
+        ZLIB::ZLIB
+        pthread
+    )
+    target_compile_options(quantumflow_pipeline PRIVATE ${OPT_FLAGS})
 endif()
 
 # ═══════════════════════════════════════════════
@@ -258,7 +275,7 @@ message(STATUS "═════════════════════�
 message(STATUS "  Build type:     ${CMAKE_BUILD_TYPE}")
 message(STATUS "  SIMD flags:     ${SIMD_FLAGS}")
 message(STATUS "  WebUI:          ${QUANTUMFLOW_BUILD_WEBUI}")
-message(STATUS "  Bridge Module:  ${QUANTUMFLOW_BUILD_BRIDGE}")
+message(STATUS "  Pipeline:       ${QUANTUMFLOW_BUILD_PIPELINE}")
 message(STATUS "  Tests:          ${QUANTUMFLOW_BUILD_TESTS}")
 message(STATUS "  Benchmarks:     ${QUANTUMFLOW_BUILD_BENCHMARKS}")
 message(STATUS "═══════════════════════════════════════════════════")

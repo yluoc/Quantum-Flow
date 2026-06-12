@@ -1,17 +1,17 @@
 # QuantumFlow
 
-Low-latency trading engine with a Python market-data pipeline and a live web UI.
+Low-latency trading engine with a C++ market-data pipeline and a live web UI.
 
 ## Highlights
 - C++ limit-order-book core with pluggable strategies
-- Python websocket ingest and normalization pipeline
-- Bridge ingress from Python to C++ (Unix socket IPC + in-process fallback)
+- C++ websocket ingest and normalization pipeline (OKX over TLS)
+- Bridge ingress into the C++ engine (Unix socket IPC)
 - Optional WebSocket server + dashboard
 
 ## Prerequisites
 - CMake 3.16+
 - C++20 compiler (GCC/Clang)
-- Python 3.10+ (for the market-data pipeline)
+- OpenSSL + zlib (for the C++ market-data pipeline WebSocket client)
 - Node.js 18+ (optional, for local web dashboard development)
 
 Linux/macOS is recommended because the engine/pipeline bridge uses Unix-domain sockets.
@@ -37,11 +37,9 @@ Linux/macOS is recommended because the engine/pipeline bridge uses Unix-domain s
      --bridge-socket /tmp/quantumflow_bridge.sock \
      --pipeline-control-socket /tmp/quantumflow_pipeline_ctrl.sock
    ```
-3. Terminal B: start the Python pipeline and push into the C++ engine:
+3. Terminal B: start the C++ market-data pipeline and push into the C++ engine:
    ```bash
-   python3 -m pip install -r pipeline/requirements.txt
-   cd pipeline
-   PYTHONPATH=. python3 -m src.app \
+   ./build/quantumflow_pipeline \
      --symbols BTC-USDT-SWAP,ETH-USDT-SWAP \
      --channels books5,trades \
      --cpp-bridge \
@@ -59,7 +57,7 @@ Linux/macOS is recommended because the engine/pipeline bridge uses Unix-domain s
 ## How To Use The Engine
 ### 1) Run in live mode (recommended)
 - Start `quantumflow` first.
-- Start the Python pipeline with `--cpp-bridge`.
+- Start the C++ pipeline (`quantumflow_pipeline`) with `--cpp-bridge`.
 - View metrics/order book/trades in the web app.
 - Use the symbol selector in the UI to request runtime symbol changes (sent through the control socket).
 
@@ -72,10 +70,8 @@ This keeps the strategy/LOB engine running without the WebSocket broadcast/UI lo
 ### 3) Use the Makefile shortcuts
 ```bash
 make build          # Configure + build C++ engine
-make configure-bridge # Configure with bridge ON (updates compile_commands for bridge C file)
-make build-bridge   # Build with bridge ON
 make run-engine     # Run engine (WebUI mode + bridge sockets)
-make pipeline-run   # Create venv, install deps, run pipeline with --cpp-bridge
+make pipeline-run   # Build + run the C++ pipeline with --cpp-bridge
 make web            # Start web dashboard dev server
 make test           # Run C++ tests
 make headless       # Build headless configuration
@@ -85,7 +81,7 @@ make headless       # Build headless configuration
 - `--symbols BTC-USDT-SWAP,ETH-USDT-SWAP` comma-separated instruments
 - `--headless` disable WebUI broadcasting
 - `--ws-port 9001` WebSocket server port for UI clients
-- `--bridge-socket /tmp/quantumflow_bridge.sock` Python->C++ ingress socket
+- `--bridge-socket /tmp/quantumflow_bridge.sock` pipeline->C++ ingress socket
 - `--pipeline-control-socket /tmp/quantumflow_pipeline_ctrl.sock` runtime symbol control socket
 
 ## IDE / IntelliSense (`compile_commands.json`)
@@ -97,22 +93,16 @@ If you see include-path squiggles, regenerate it by reconfiguring:
 make configure
 ```
 
-If you need IntelliSense for the bridge C API translation unit
-(`bridge/quantumflow_uds_bridge_capi.c`), configure with bridge enabled:
-```bash
-make configure-bridge
-```
-
 ## Project Layout
 ```text
 quantumflow/
 ├── main.cpp                 # C++ engine entrypoint
 ├── CMakeLists.txt           # Build configuration
 ├── Makefile                 # Common dev/build/run commands
-├── bridge/                  # Python -> C++ ingress bridge
+├── bridge/                  # Shared-memory IPC helpers for the engine
 ├── common/                  # Shared C++ data models/utilities
 ├── orderbook/               # Limit order book core + tests/bench
-├── pipeline/                # Python market-data ingest/normalize/sinks
+├── pipeline/                # C++ market-data ingest/normalize/sinks
 ├── strategies/              # Strategy interfaces + implementations
 ├── ws/                      # C++ WebSocket server + JSON serializers
 ├── web/                     # React/Tailwind dashboard

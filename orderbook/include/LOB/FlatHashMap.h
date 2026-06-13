@@ -7,6 +7,8 @@
 #include <new>
 #include "Macros.h"
 
+namespace quantumflow::lob {
+
 /**
  * FlatHashMap: Open-addressing hash map optimized for LOB hot paths.
  *
@@ -317,5 +319,7 @@ public:
         return it;
     }
 };
+
+} // namespace quantumflow::lob
 
 #endif // LOB_FLAT_HASH_MAP_H

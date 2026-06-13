@@ -4,6 +4,8 @@
 #include "LOB/Order.h"
 #include "LOB/Level.h"
 
+using namespace quantumflow::lob;
+
 // Order Tests
 TEST(OrderTest, FillOrderBeyondVolume) {
 	Order order(1, 1, BUY, 100, 50, 50, ACTIVE);

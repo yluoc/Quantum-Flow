@@ -4,6 +4,8 @@
 #include <iostream>
 #include <limits>
 
+namespace quantumflow::lob {
+
 Book::Book(size_t initial_capacity)
     : buy_list_head(nullptr),
       sell_list_head(nullptr),
@@ -316,3 +318,5 @@ void Book::print() const {
         l->print();
     }
 }
+
+} // namespace quantumflow::lob

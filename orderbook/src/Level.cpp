@@ -2,6 +2,8 @@
 #include "LOB/Level.h"
 #include "LOB/Macros.h"
 
+namespace quantumflow::lob {
+
 void Level::push_back(Order* order) {
     if (LOB_UNLIKELY(!order)) return;
     
@@ -91,3 +93,5 @@ void Level::print() const {
         current = current->get_next_order();
     }
 }
+
+} // namespace quantumflow::lob

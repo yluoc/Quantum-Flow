@@ -2,6 +2,8 @@
 #include <cassert>
 #include "LOB/Order.h"
 
+namespace quantumflow::lob {
+
 void Order::fill(Volume fill_volume) {
     // Assert in debug builds only - no exceptions in hot path
     assert(fill_volume <= remaining_volume && "Fill volume exceeds remaining volume");
@@ -43,4 +45,6 @@ void Order::print() {
             std::cout << "DELETED" << std::endl;
             break;
     }
-}   
+}
+
+} // namespace quantumflow::lob

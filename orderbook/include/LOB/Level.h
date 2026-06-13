@@ -4,6 +4,8 @@
 #include "Order.h"
 #include "Trade.h"
 
+namespace quantumflow::lob {
+
 /**
  * Level: Represents a price level in the order book.
  * 
@@ -90,5 +92,7 @@ class Level {
 
 // Raw pointer type alias
 using LevelPointer = Level*;
+
+} // namespace quantumflow::lob
 
 #endif //LOB_LEVEL_H

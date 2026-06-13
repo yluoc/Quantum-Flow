@@ -3,6 +3,8 @@
 
 #include "Types.h"
 
+namespace quantumflow::lob {
+
 // Forward declaration
 class Order;
 
@@ -86,5 +88,7 @@ class Order {
 
 // Raw pointer type alias for clarity
 using OrderPointer = Order*;
+
+} // namespace quantumflow::lob
 
 #endif // LOB_ORDER_H

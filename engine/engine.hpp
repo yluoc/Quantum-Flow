@@ -53,7 +53,7 @@ public:
 
 private:
     /// Look up the book for a symbol, lazily creating book/trade buffers if unseen.
-    Book& ensure_symbol(const std::string& sym);
+    lob::Book& ensure_symbol(const std::string& sym);
 
     /// Apply a single market-data packet to its book and strategies.
     void process_packet(const MarketDataPacket& pkt);
@@ -73,7 +73,7 @@ private:
 
     Config cfg_;
     PriceConverterRegistry price_reg_;
-    std::unordered_map<std::string, std::unique_ptr<Book>> books_;
+    std::unordered_map<std::string, std::unique_ptr<lob::Book>> books_;
     StrategyEngine strategy_engine_;
     MarketDataBridge& bridge_;
 

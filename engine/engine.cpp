@@ -182,7 +182,7 @@ bool Engine::init() {
     std::printf("Pipeline Control Socket: %s\n", cfg_.pipeline_control_socket_path.c_str());
 
     for (const auto& sym : cfg_.symbols) {
-        books_[sym] = std::make_unique<Book>();
+        books_[sym] = std::make_unique<lob::Book>();
         recent_trades_[sym] = {};
 #ifndef QUANTUMFLOW_HEADLESS
         ws_trade_buffers_[sym] = {};
@@ -236,10 +236,10 @@ bool Engine::init() {
     return true;
 }
 
-Book& Engine::ensure_symbol(const std::string& sym) {
+lob::Book& Engine::ensure_symbol(const std::string& sym) {
     auto it = books_.find(sym);
     if (it == books_.end()) {
-        books_[sym] = std::make_unique<Book>();
+        books_[sym] = std::make_unique<lob::Book>();
         recent_trades_[sym] = {};
 #ifndef QUANTUMFLOW_HEADLESS
         ws_trade_buffers_[sym] = {};
@@ -259,7 +259,7 @@ void Engine::process_packet(const MarketDataPacket& pkt) {
 
     active_symbol_ = sym;
 
-    Book& book = ensure_symbol(sym);
+    lob::Book& book = ensure_symbol(sym);
 
     uint64_t ingest_ns = now_ns();
     if (pkt.timestamp_ns > 0 && ingest_ns >= pkt.timestamp_ns) {
@@ -269,9 +269,9 @@ void Engine::process_packet(const MarketDataPacket& pkt) {
     const auto& converter = price_reg_.get(sym);
 
     if (pkt.event_type == 0) {
-        OrderType ot = (pkt.side == 0) ? BUY : SELL;
-        PRICE internal_price = converter.to_internal(pkt.price);
-        const Trades& trades = book.place_order(
+        lob::OrderType ot = (pkt.side == 0) ? lob::BUY : lob::SELL;
+        lob::PRICE internal_price = converter.to_internal(pkt.price);
+        const lob::Trades& trades = book.place_order(
             next_order_id_++, 0, ot, internal_price, pkt.quantity);
 
         for (const auto& t : trades) {

@@ -2,6 +2,7 @@
 #include "common/price_converter.hpp"
 
 using namespace quantumflow;
+using namespace quantumflow::lob;
 
 TEST(PriceConverter, RoundTripCents) {
     PriceConverter pc(100.0);

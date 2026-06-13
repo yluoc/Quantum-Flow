@@ -30,7 +30,7 @@ struct BookSnapshot {
     double mid_price;
     uint64_t timestamp_ns;
 
-    static BookSnapshot from_book(const Book& book, const std::string& symbol,
+    static BookSnapshot from_book(const lob::Book& book, const std::string& symbol,
                                   const PriceConverter& converter);
 };
 

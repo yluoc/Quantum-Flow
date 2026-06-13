@@ -17,11 +17,11 @@ public:
         , inv_scale_(1.0 / scale_factor)
     {}
 
-    PRICE to_internal(double external_price) const {
-        return static_cast<PRICE>(std::llround(external_price * scale_factor_));
+    lob::PRICE to_internal(double external_price) const {
+        return static_cast<lob::PRICE>(std::llround(external_price * scale_factor_));
     }
 
-    double to_external(PRICE internal_price) const {
+    double to_external(lob::PRICE internal_price) const {
         return static_cast<double>(internal_price) * inv_scale_;
     }
 

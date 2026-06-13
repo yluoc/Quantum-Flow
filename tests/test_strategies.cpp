@@ -58,9 +58,11 @@ TEST(OrderBookImbalance, NeutralOnBalanced) {
 TEST(OrderBookImbalance, ConfidenceIncreasesWithImbalanceStrength) {
     OrderBookImbalance strat(3, 0.3);
 
+    // Weak imbalance: 2:1 bid/ask -> imbalance 0.333, just above the 0.3
+    // threshold, so it triggers BUY but with low confidence.
     auto weak = make_snapshot(
-        {{100.0, 620, 3}, {99.0, 600, 3}, {98.0, 580, 3}},
-        {{101.0, 380, 3}, {102.0, 400, 3}, {103.0, 420, 3}}
+        {{100.0, 700, 3}, {99.0, 700, 3}, {98.0, 700, 3}},
+        {{101.0, 350, 3}, {102.0, 350, 3}, {103.0, 350, 3}}
     );
     auto strong = make_snapshot(
         {{100.0, 1200, 3}, {99.0, 1100, 3}, {98.0, 1000, 3}},

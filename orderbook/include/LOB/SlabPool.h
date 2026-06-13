@@ -13,6 +13,8 @@
 #include <sys/mman.h>
 #endif
 
+namespace quantumflow::lob {
+
 /**
  * SlabPool: O(1) free-list based object pool allocator for hot-path allocations.
  *
@@ -188,5 +190,7 @@ public:
     size_t capacity() const { return total_capacity_; }
     size_t size() const { return allocated_count_; }
 };
+
+} // namespace quantumflow::lob
 
 #endif // LOB_SLAB_POOL_H

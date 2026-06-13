@@ -6,6 +6,8 @@
 #include "SlabPool.h"
 #include "FlatHashMap.h"
 
+namespace quantumflow::lob {
+
 using PriceLevelMap = FlatHashMap<PRICE, Level*>;
 using Orders = FlatHashMap<ID, Order*>;
 
@@ -98,5 +100,7 @@ class Book {
         void print() const;
         OrderStatus get_order_status(ID id) const;
 };
+
+} // namespace quantumflow::lob
 
 #endif // LOB_BOOK_H

@@ -16,6 +16,7 @@ using std::uniform_real_distribution;
 
 using namespace std;
 using namespace std::chrono;
+using namespace quantumflow::lob;
 
 struct Message {
     enum Type { NEW, CANCEL } type;

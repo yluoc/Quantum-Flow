@@ -8,6 +8,7 @@
 
 #include "LOB/Book.h"
 #include "bridge/shared_memory.hpp"
+#include "common/bounded_history.hpp"
 #include "common/price_converter.hpp"
 #include "strategies/strategy_base.hpp"
 #include "strategies/strategy_engine.hpp"
@@ -81,7 +82,9 @@ private:
     uint64_t bridge_socket_rx_ = 0;
     uint64_t bridge_socket_bad_ = 0;
 
-    std::unordered_map<std::string, std::vector<TradeInfo>> recent_trades_;
+    // Strategy-facing trade window: grows to 1000, trimmed to the last 500.
+    using TradeHistory = BoundedHistory<TradeInfo, 1000, 500>;
+    std::unordered_map<std::string, TradeHistory> recent_trades_;
     uint64_t next_order_id_ = 1;
     std::string active_symbol_;
     double latest_python_to_cpp_us_ = 0.0;
@@ -93,7 +96,10 @@ private:
     void broadcast_frame(uint64_t loop_start, uint64_t strat_start, uint64_t strat_end);
 
     WsServer ws_server_;
-    std::unordered_map<std::string, std::vector<TradeInfo>> ws_trade_buffers_;
+    // Per-broadcast trade buffer: serialized in full each frame, then trimmed
+    // to the most recent 200 to bound carry-over.
+    using BroadcastTrades = BoundedHistory<TradeInfo, 200, 200>;
+    std::unordered_map<std::string, BroadcastTrades> ws_trade_buffers_;
     uint64_t last_broadcast_ns_ = 0;
 #endif
 };

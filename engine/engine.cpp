@@ -281,18 +281,18 @@ void Engine::process_packet(const MarketDataPacket& pkt) {
                 pkt.side,
                 pkt.timestamp_ns
             };
-            recent_trades_[sym].push_back(ti);
+            recent_trades_[sym].push(ti);
             strategy_engine_.on_trade(ti);
 #ifndef QUANTUMFLOW_HEADLESS
-            if (!cfg_.headless) ws_trade_buffers_[sym].push_back(ti);
+            if (!cfg_.headless) ws_trade_buffers_[sym].push(ti);
 #endif
         }
     } else if (pkt.event_type == 1) {
         TradeInfo ti{pkt.price, pkt.quantity, pkt.side, pkt.timestamp_ns};
-        recent_trades_[sym].push_back(ti);
+        recent_trades_[sym].push(ti);
         strategy_engine_.on_trade(ti);
 #ifndef QUANTUMFLOW_HEADLESS
-        if (!cfg_.headless) ws_trade_buffers_[sym].push_back(ti);
+        if (!cfg_.headless) ws_trade_buffers_[sym].push(ti);
 #endif
     }
 }
@@ -344,13 +344,9 @@ void Engine::evaluate_active(uint64_t& strat_start, uint64_t& strat_end) {
             snapshot.timestamp_ns = now_ns();
 
             auto& trades_buf = recent_trades_[primary_sym];
-            if (trades_buf.size() > 1000) {
-                trades_buf.erase(trades_buf.begin(),
-                                 trades_buf.begin() +
-                                     static_cast<long>(trades_buf.size() - 500));
-            }
+            trades_buf.trim();
 
-            strategy_engine_.evaluate(snapshot, trades_buf);
+            strategy_engine_.evaluate(snapshot, trades_buf.view());
         }
     }
     strat_end = now_ns();
@@ -372,11 +368,8 @@ void Engine::broadcast_frame(uint64_t loop_start, uint64_t strat_start, uint64_t
     }
 
     for (auto& [sym, trades] : ws_trade_buffers_) {
-        ws_server_.broadcast(serialize_trades(sym, trades, now));
-        if (trades.size() > 200) {
-            trades.erase(trades.begin(),
-                         trades.begin() + static_cast<long>(trades.size() - 200));
-        }
+        ws_server_.broadcast(serialize_trades(sym, trades.view(), now));
+        trades.trim();
     }
 
     ws_server_.broadcast(serialize_strategies(strategy_engine_.all_signals(), now));

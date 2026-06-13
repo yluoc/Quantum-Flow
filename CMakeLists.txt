@@ -249,6 +249,14 @@ if(QUANTUMFLOW_BUILD_TESTS)
     target_include_directories(test_strategies PRIVATE ${QF_ROOT} ${QF_ROOT}/orderbook/include)
     target_link_libraries(test_strategies PRIVATE strategies_lib GTest::gtest GTest::gtest_main)
     add_test(NAME StrategiesTest COMMAND test_strategies)
+
+    # Bounded history test
+    add_executable(test_bounded_history
+        tests/test_bounded_history.cpp
+    )
+    target_include_directories(test_bounded_history PRIVATE ${QF_ROOT})
+    target_link_libraries(test_bounded_history PRIVATE GTest::gtest GTest::gtest_main)
+    add_test(NAME BoundedHistoryTest COMMAND test_bounded_history)
 endif()
 
 # ═══════════════════════════════════════════════

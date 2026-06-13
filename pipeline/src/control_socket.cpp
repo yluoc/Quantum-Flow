@@ -11,6 +11,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "common/unix_socket.hpp"
+
 namespace quantumflow::pipeline {
 
 std::vector<std::string> normalize_symbols(const std::vector<std::string>& symbols) {
@@ -39,23 +41,18 @@ ControlSocket::~ControlSocket() {
 void ControlSocket::start() {
     if (socket_path_.empty()) return;
 
-    if (socket_path_.size() >= sizeof(sockaddr_un::sun_path)) {
+    if (!unix_path_fits(socket_path_)) {
         std::fprintf(stderr, "[control] socket path may be too long for AF_UNIX: %s\n",
                      socket_path_.c_str());
     }
 
-    fd_ = ::socket(AF_UNIX, SOCK_DGRAM, 0);
+    fd_ = make_unix_dgram_socket();
     if (fd_ < 0) {
         std::fprintf(stderr, "[control] failed to create socket: %s\n", std::strerror(errno));
         return;
     }
 
-    ::unlink(socket_path_.c_str());  // Best effort; ignore ENOENT.
-
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    std::snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", socket_path_.c_str());
-    if (::bind(fd_, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr)) < 0) {
+    if (!bind_unix_dgram(fd_, socket_path_)) {
         std::fprintf(stderr, "[control] failed to bind %s: %s\n", socket_path_.c_str(),
                      std::strerror(errno));
         ::close(fd_);

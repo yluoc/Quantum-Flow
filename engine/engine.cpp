@@ -13,6 +13,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include "common/unix_socket.hpp"
 #include "strategies/microstructure/order_book_imbalance.hpp"
 #include "strategies/microstructure/market_maker.hpp"
 #include "strategies/microstructure/vwap_executor.hpp"
@@ -44,29 +45,20 @@ double ns_to_us(uint64_t ns) {
 constexpr int MAX_DRAIN_PER_FRAME = 256;
 
 int open_bridge_socket(const std::string& path) {
-    if (path.size() >= sizeof(sockaddr_un::sun_path)) {
+    if (!unix_path_fits(path)) {
         std::fprintf(stderr, "Bridge socket path too long: %s\n", path.c_str());
         return -1;
     }
 
-    int fd = ::socket(AF_UNIX, SOCK_DGRAM, 0);
+    int fd = make_unix_dgram_socket();
     if (fd < 0) {
         std::fprintf(stderr, "Failed to create bridge socket: %s\n", std::strerror(errno));
         return -1;
     }
 
-    int flags = ::fcntl(fd, F_GETFL, 0);
-    if (flags >= 0) {
-        (void)::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-    }
+    set_nonblocking(fd);
 
-    (void)::unlink(path.c_str());
-
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    std::snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path.c_str());
-
-    if (::bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+    if (!bind_unix_dgram(fd, path)) {
         std::fprintf(stderr, "Failed to bind bridge socket %s: %s\n",
                      path.c_str(), std::strerror(errno));
         ::close(fd);
@@ -83,7 +75,7 @@ bool send_pipeline_symbol_update(
     const std::string& control_socket_path,
     const std::vector<std::string>& symbols) {
     if (symbols.empty()) return false;
-    if (control_socket_path.size() >= sizeof(sockaddr_un::sun_path)) {
+    if (!unix_path_fits(control_socket_path)) {
         std::fprintf(stderr, "Pipeline control socket path too long: %s\n",
                      control_socket_path.c_str());
         return false;
@@ -95,20 +87,7 @@ bool send_pipeline_symbol_update(
     };
     const std::string payload = msg.dump();
 
-    int fd = ::socket(AF_UNIX, SOCK_DGRAM, 0);
-    if (fd < 0) {
-        std::fprintf(stderr, "Failed to create control socket: %s\n", std::strerror(errno));
-        return false;
-    }
-
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    std::snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", control_socket_path.c_str());
-
-    ssize_t sent = ::sendto(fd, payload.data(), payload.size(), 0,
-                            reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-    ::close(fd);
-
+    ssize_t sent = send_unix_dgram(control_socket_path, payload.data(), payload.size());
     if (sent < 0) {
         std::fprintf(stderr, "Failed to send symbols to pipeline control socket %s: %s\n",
                      control_socket_path.c_str(), std::strerror(errno));
@@ -249,6 +228,16 @@ lob::Book& Engine::ensure_symbol(const std::string& sym) {
     return *it->second;
 }
 
+void Engine::refresh_symbol_cache(const std::string& sym) {
+    cache_.symbol = sym;
+    cache_.book = &ensure_symbol(sym);
+    cache_.converter = &price_reg_.get(sym);
+    cache_.recent = &recent_trades_[sym];
+#ifndef QUANTUMFLOW_HEADLESS
+    cache_.ws = &ws_trade_buffers_[sym];
+#endif
+}
+
 void Engine::process_packet(const MarketDataPacket& pkt) {
     char symbol_buf[sizeof(pkt.symbol) + 1]{};
     std::memcpy(symbol_buf, pkt.symbol, sizeof(pkt.symbol));
@@ -259,14 +248,19 @@ void Engine::process_packet(const MarketDataPacket& pkt) {
 
     active_symbol_ = sym;
 
-    lob::Book& book = ensure_symbol(sym);
+    // Packets arrive in per-symbol bursts; only re-resolve the book/converter/
+    // buffers when the symbol actually changes from the previous packet.
+    if (sym != cache_.symbol) {
+        refresh_symbol_cache(sym);
+    }
+
+    lob::Book& book = *cache_.book;
+    const PriceConverter& converter = *cache_.converter;
 
     uint64_t ingest_ns = now_ns();
     if (pkt.timestamp_ns > 0 && ingest_ns >= pkt.timestamp_ns) {
         latest_python_to_cpp_us_ = ns_to_us(ingest_ns - pkt.timestamp_ns);
     }
-
-    const auto& converter = price_reg_.get(sym);
 
     if (pkt.event_type == 0) {
         lob::OrderType ot = (pkt.side == 0) ? lob::BUY : lob::SELL;
@@ -281,18 +275,18 @@ void Engine::process_packet(const MarketDataPacket& pkt) {
                 pkt.side,
                 pkt.timestamp_ns
             };
-            recent_trades_[sym].push(ti);
+            cache_.recent->push(ti);
             strategy_engine_.on_trade(ti);
 #ifndef QUANTUMFLOW_HEADLESS
-            if (!cfg_.headless) ws_trade_buffers_[sym].push(ti);
+            if (!cfg_.headless) cache_.ws->push(ti);
 #endif
         }
     } else if (pkt.event_type == 1) {
         TradeInfo ti{pkt.price, pkt.quantity, pkt.side, pkt.timestamp_ns};
-        recent_trades_[sym].push(ti);
+        cache_.recent->push(ti);
         strategy_engine_.on_trade(ti);
 #ifndef QUANTUMFLOW_HEADLESS
-        if (!cfg_.headless) ws_trade_buffers_[sym].push(ti);
+        if (!cfg_.headless) cache_.ws->push(ti);
 #endif
     }
 }

@@ -53,6 +53,31 @@ public:
     void stop() { running_ = false; }
 
 private:
+    // Trade-buffer policies (capacity baked into the type so the maps stay
+    // default-constructible). Strategy window grows to 1000, trimmed to the last
+    // 500; the per-broadcast buffer is capped at the most recent 200.
+    using TradeHistory = BoundedHistory<TradeInfo, 1000, 500>;
+#ifndef QUANTUMFLOW_HEADLESS
+    using BroadcastTrades = BoundedHistory<TradeInfo, 200, 200>;
+#endif
+
+    /// Resources for the symbol of the most recently processed packet, cached to
+    /// avoid re-hashing the symbol on every packet within a burst. Pointers index
+    /// into books_/recent_trades_/ws_trade_buffers_ and the converter registry,
+    /// all of which keep elements stable (entries are never erased).
+    struct SymbolCache {
+        std::string symbol;                  // empty => invalid
+        lob::Book* book = nullptr;
+        const PriceConverter* converter = nullptr;
+        TradeHistory* recent = nullptr;
+#ifndef QUANTUMFLOW_HEADLESS
+        BroadcastTrades* ws = nullptr;
+#endif
+    };
+
+    /// Point cache_ at `sym`'s resources, creating them if the symbol is new.
+    void refresh_symbol_cache(const std::string& sym);
+
     /// Look up the book for a symbol, lazily creating book/trade buffers if unseen.
     lob::Book& ensure_symbol(const std::string& sym);
 
@@ -82,9 +107,8 @@ private:
     uint64_t bridge_socket_rx_ = 0;
     uint64_t bridge_socket_bad_ = 0;
 
-    // Strategy-facing trade window: grows to 1000, trimmed to the last 500.
-    using TradeHistory = BoundedHistory<TradeInfo, 1000, 500>;
     std::unordered_map<std::string, TradeHistory> recent_trades_;
+    SymbolCache cache_;
     uint64_t next_order_id_ = 1;
     std::string active_symbol_;
     double latest_python_to_cpp_us_ = 0.0;
@@ -96,9 +120,6 @@ private:
     void broadcast_frame(uint64_t loop_start, uint64_t strat_start, uint64_t strat_end);
 
     WsServer ws_server_;
-    // Per-broadcast trade buffer: serialized in full each frame, then trimmed
-    // to the most recent 200 to bound carry-over.
-    using BroadcastTrades = BoundedHistory<TradeInfo, 200, 200>;
     std::unordered_map<std::string, BroadcastTrades> ws_trade_buffers_;
     uint64_t last_broadcast_ns_ = 0;
 #endif

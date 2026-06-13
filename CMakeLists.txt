@@ -151,7 +151,7 @@ endif()
 # MAIN EXECUTABLE
 # ═══════════════════════════════════════════════
 if(QUANTUMFLOW_BUILD_WEBUI)
-    add_executable(quantumflow main.cpp)
+    add_executable(quantumflow main.cpp engine/engine.cpp)
 
     target_include_directories(quantumflow PRIVATE ${QF_ROOT} ${QF_ROOT}/graphics/include)
     target_link_libraries(quantumflow PRIVATE
@@ -161,7 +161,7 @@ if(QUANTUMFLOW_BUILD_WEBUI)
     )
     target_compile_options(quantumflow PRIVATE ${OPT_FLAGS})
 else()
-    add_executable(quantumflow main.cpp)
+    add_executable(quantumflow main.cpp engine/engine.cpp)
     target_include_directories(quantumflow PRIVATE ${QF_ROOT} ${QF_ROOT}/graphics/include)
     target_compile_definitions(quantumflow PRIVATE QUANTUMFLOW_HEADLESS)
     target_link_libraries(quantumflow PRIVATE
@@ -172,7 +172,7 @@ else()
 endif()
 
 # Headless-only build (no WebUI dependency)
-add_executable(quantumflow_headless main.cpp)
+add_executable(quantumflow_headless main.cpp engine/engine.cpp)
 target_include_directories(quantumflow_headless PRIVATE ${QF_ROOT} ${QF_ROOT}/graphics/include)
 target_compile_definitions(quantumflow_headless PRIVATE QUANTUMFLOW_HEADLESS)
 target_link_libraries(quantumflow_headless PRIVATE
